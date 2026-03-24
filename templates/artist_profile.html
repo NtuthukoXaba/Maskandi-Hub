@@ -1,0 +1,109 @@
+{% extends 'base.html' %}
+
+{% block title %}{{ artist['name'] }}{% endblock %}
+
+{% block content %}
+<section class="inner-hero">
+    <span class="tag">ARTIST PROFILE</span>
+    <h1>{{ artist['name'] }}</h1>
+    <p>{{ artist['style'] }}</p>
+</section>
+
+<section class="section-block artist-profile-section">
+    <div class="artist-profile-layout">
+
+        <div class="artist-profile-media glass-card">
+            {% if artist['image'] %}
+                <img
+                    src="{{ url_for('static', filename='uploads/artists/' ~ artist['image']) }}"
+                    alt="{{ artist['name'] }}"
+                    class="artist-profile-image"
+                >
+            {% else %}
+                <div class="artist-profile-fallback">
+                    {{ artist['name'][0] }}
+                </div>
+            {% endif %}
+
+            <div class="artist-profile-quick-stats">
+                <div class="profile-stat-item">
+                    <span class="profile-stat-label">Style</span>
+                    <strong>{{ artist['style'] }}</strong>
+                </div>
+                <div class="profile-stat-item">
+                    <span class="profile-stat-label">Total Views</span>
+                    <strong>{{ artist['total_views'] }}</strong>
+                </div>
+            </div>
+        </div>
+
+        <div class="artist-profile-details">
+            <div class="glass-card profile-content-card">
+                <h2>About the Artist</h2>
+                <p class="artist-biography-text">
+                    {{ artist['history'] or "No biography available." }}
+                </p>
+            </div>
+
+            <div class="glass-card profile-content-card">
+                <h3>Social Links</h3>
+
+                <div class="artist-social-links">
+                    {% if artist['facebook'] %}
+                        <a href="{{ artist['facebook'] }}" target="_blank" class="social-link-pill">Facebook</a>
+                    {% endif %}
+                    {% if artist['instagram'] %}
+                        <a href="{{ artist['instagram'] }}" target="_blank" class="social-link-pill">Instagram</a>
+                    {% endif %}
+                    {% if artist['tiktok'] %}
+                        <a href="{{ artist['tiktok'] }}" target="_blank" class="social-link-pill">TikTok</a>
+                    {% endif %}
+                    {% if artist['youtube_channel'] %}
+                        <a href="{{ artist['youtube_channel'] }}" target="_blank" class="social-link-pill">YouTube</a>
+                    {% endif %}
+                    {% if artist['spotify_channel'] %}
+                        <a href="{{ artist['spotify_channel'] }}" target="_blank" class="social-link-pill">Spotify</a>
+                    {% endif %}
+
+                    {% if not artist['facebook'] and not artist['instagram'] and not artist['tiktok'] and not artist['youtube_channel'] and not artist['spotify_channel'] %}
+                        <p class="profile-muted-text">No social links available.</p>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="artist-songs-section">
+        <div class="section-heading">
+            <h2>Top Songs</h2>
+            <p>Popular tracks and streaming performance.</p>
+        </div>
+
+        <div class="content-grid three-grid profile-song-grid">
+            {% for song in songs %}
+            <div class="glass-card profile-song-card">
+                <div class="song-card-top">
+                    <h3>{{ song['title'] }}</h3>
+                </div>
+
+                <div class="song-metrics">
+                    <div class="song-metric-pill">
+                        <span>YouTube</span>
+                        <strong>{{ song['youtube_views'] }}</strong>
+                    </div>
+                    <div class="song-metric-pill">
+                        <span>Spotify</span>
+                        <strong>{{ song['spotify_streams'] }}</strong>
+                    </div>
+                </div>
+            </div>
+            {% else %}
+            <div class="glass-card profile-empty-state">
+                <h3>No songs available</h3>
+                <p>This artist does not have songs added yet.</p>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+</section>
+{% endblock %}

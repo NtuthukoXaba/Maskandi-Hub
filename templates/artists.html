@@ -1,0 +1,91 @@
+{% extends 'base.html' %}
+
+{% block title %}Maskandi Artists{% endblock %}
+
+{% block content %}
+<section class="inner-hero">
+    <span class="tag">ARTIST DIRECTORY</span>
+    <h1>Maskandi Artists</h1>
+    <p>Explore performers, rising stars, and legendary voices of Maskandi music.</p>
+</section>
+
+<section class="section-block" style="padding-top: 10px;">
+    <form method="GET" action="{{ url_for('artists') }}" class="artist-search-form" style="margin-bottom: 28px;">
+        <div style="display:flex; gap:12px; flex-wrap:wrap; align-items:center;">
+            <input
+                type="text"
+                name="search"
+                value="{{ search }}"
+                placeholder="Search artist by name, style, or history..."
+                style="flex:1; min-width:260px; padding:14px 18px; border-radius:16px; border:1px solid rgba(255,255,255,0.12); background:rgba(255,255,255,0.06); color:white; outline:none;"
+            >
+            <button type="submit" class="btn btn-primary">Search</button>
+
+            {% if search %}
+                <a href="{{ url_for('artists') }}" class="btn btn-secondary">Clear</a>
+            {% endif %}
+        </div>
+    </form>
+
+    <div class="content-grid three-grid">
+        {% for artist in artists_list %}
+        <div class="artist-card">
+            {% if artist['image'] %}
+                <img
+                    src="{{ url_for('static', filename='uploads/artists/' ~ artist['image']) }}"
+                    alt="{{ artist['name'] }}"
+                    style="width:100%; height:240px; object-fit:cover; border-radius:20px; margin-bottom:18px;"
+                >
+            {% else %}
+                <div class="avatar-circle">{{ artist['name'][0] }}</div>
+            {% endif %}
+
+            <h3>{{ artist['name'] }}</h3>
+            <p><strong>{{ artist['style'] }}</strong></p>
+
+            {% if artist['history'] %}
+                <p>
+                    {{ artist['history'][:120] }}{% if artist['history']|length > 120 %}...{% endif %}
+                </p>
+            {% else %}
+                <p>No artist history added yet.</p>
+            {% endif %}
+
+            <p>Views of Top Songs: {{ artist['total_views'] }}</p>
+            <a href="{{ url_for('artist_profile', artist_id=artist['id']) }}" class="card-link">
+    View Profile
+</a>
+        </div>
+        {% else %}
+        <div class="glass-card" style="grid-column: 1 / -1;">
+            <h3>No artists found</h3>
+            <p>Try another search term or add artists from the admin panel.</p>
+        </div>
+        {% endfor %}
+    </div>
+
+    <div style="display:flex; justify-content:center; align-items:center; gap:14px; margin-top:32px; flex-wrap:wrap;">
+        {% if has_prev %}
+            <a
+                href="{{ url_for('artists', search=search, page=page-1) }}"
+                class="btn btn-secondary"
+            >
+                Previous
+            </a>
+        {% endif %}
+
+        <span style="padding:12px 18px; border-radius:14px; background:rgba(255,255,255,0.06); border:1px solid rgba(255,255,255,0.08); color:white;">
+            Page {{ page }} of {{ total_pages }}
+        </span>
+
+        {% if has_next %}
+            <a
+                href="{{ url_for('artists', search=search, page=page+1) }}"
+                class="btn btn-primary"
+            >
+                Next
+            </a>
+        {% endif %}
+    </div>
+</section>
+{% endblock %}

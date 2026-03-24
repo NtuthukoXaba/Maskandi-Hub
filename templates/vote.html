@@ -1,0 +1,91 @@
+{% extends 'base.html' %}
+
+{% block title %}Vote for Awards{% endblock %}
+
+{% block content %}
+<section class="inner-hero">
+    <span class="tag">FAN POWER</span>
+    <h1>Vote for Awards</h1>
+    <p>Support your favorite artists and songs in each category.</p>
+</section>
+
+<section class="section-block vote-page-section">
+    <div class="content-grid two-grid vote-grid-custom">
+        {% if vote_events %}
+            {% for item in vote_events %}
+            <div class="glass-card vote-panel vote-panel-pro">
+                <div class="vote-panel-head">
+                    <div class="vote-panel-title-wrap">
+                        <h3>{{ item.event.title }}</h3>
+                        <p class="vote-category-label">{{ item.event.category_type }}</p>
+                    </div>
+                    <span class="vote-status-badge {{ item.live_status|lower }}">{{ item.live_status }}</span>
+                </div>
+
+                <div class="vote-meta-grid">
+                    <div class="vote-meta-box">
+                        <span>Opens</span>
+                        <strong>{{ item.event.start_datetime.replace('T', ' ') if item.event.start_datetime else 'Not set' }}</strong>
+                    </div>
+                    <div class="vote-meta-box">
+                        <span>Closes</span>
+                        <strong>{{ item.event.end_datetime.replace('T', ' ') if item.event.end_datetime else 'Not set' }}</strong>
+                    </div>
+                </div>
+
+                {% if item.live_status == "Upcoming" %}
+                    <div class="vote-message-box">
+                        <p class="vote-note">This voting category is upcoming. Voting is not open yet.</p>
+                    </div>
+                {% elif item.voted_already %}
+                    <div class="vote-message-box success-box">
+                        <p class="vote-note success-note">You have already voted on this device for this category.</p>
+                    </div>
+                {% endif %}
+
+                <div class="vote-options-list">
+                    {% for candidate in item.candidates %}
+                    <div class="vote-option vote-option-pro">
+                        <div class="vote-candidate-left">
+                            {% if candidate.image %}
+                                <img
+                                    src="{{ url_for('static', filename='uploads/votes/' ~ candidate.image) }}"
+                                    alt="{{ candidate.candidate_name }}"
+                                    class="vote-candidate-image"
+                                >
+                            {% else %}
+                                <div class="vote-candidate-fallback">
+                                    {{ candidate.candidate_name[0] }}
+                                </div>
+                            {% endif %}
+
+                            <div class="vote-candidate-info">
+                                <span class="vote-candidate-name">{{ candidate.candidate_name }}</span>
+                            </div>
+                        </div>
+
+                        <div class="vote-action-wrap">
+                            {% if item.live_status == "Open" and not item.voted_already %}
+                            <form action="{{ url_for('submit_vote', event_id=item.event.id, candidate_id=candidate.id) }}" method="POST">
+                                <button type="submit" class="vote-btn-main">Vote</button>
+                            </form>
+                            {% elif item.live_status == "Upcoming" %}
+                            <button type="button" class="vote-btn-main" disabled>Upcoming</button>
+                            {% else %}
+                            <button type="button" class="vote-btn-main" disabled>Voted</button>
+                            {% endif %}
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+            {% endfor %}
+        {% else %}
+            <div class="glass-card vote-panel vote-panel-pro vote-empty-state">
+                <h3>No voting categories available</h3>
+                <p class="vote-note">There are no open or upcoming voting events right now.</p>
+            </div>
+        {% endif %}
+    </div>
+</section>
+{% endblock %}

@@ -1,0 +1,154 @@
+{% extends 'admin/admin_base.html' %}
+
+{% block admin_page_title %}Manage News{% endblock %}
+{% block admin_page_subtitle %}Publish stories, announcements, and updates{% endblock %}
+
+{% block admin_content %}
+
+<div class="news-page-layout">
+
+    <!-- PINNED TOP SECTION -->
+    <div class="news-top-bar">
+        <div class="admin-toolbar stacked-toolbar" style="margin-bottom:0;">
+            <div class="toolbar-top-row">
+                <button type="button" class="primary-admin-btn" onclick="openNewsModal()">+ Add News</button>
+
+                <form method="GET" action="{{ url_for('manage_news') }}" class="artist-filter-form">
+                    <input type="text" name="search" placeholder="Search news title or content..." value="{{ search }}">
+
+                    <select name="category">
+                        <option value="">All Categories</option>
+                        {% for cat in categories %}
+                            <option value="{{ cat['category'] }}" {% if category_filter == cat['category'] %}selected{% endif %}>
+                                {{ cat['category'] }}
+                            </option>
+                        {% endfor %}
+                    </select>
+
+                    <select name="status">
+                        <option value="">All Status</option>
+                        <option value="Published" {% if status_filter == 'Published' %}selected{% endif %}>Published</option>
+                        <option value="Draft" {% if status_filter == 'Draft' %}selected{% endif %}>Draft</option>
+                    </select>
+
+                    <button type="submit" class="primary-admin-btn">Apply</button>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- SCROLLABLE NEWS AREA -->
+    <div class="news-scroll-section">
+        <div class="compact-artists-list">
+            {% if news_items %}
+                {% for item in news_items %}
+                <div class="artist-list-item compact-item">
+                    {% if item['image'] %}
+                        <img src="{{ url_for('static', filename='uploads/news/' ~ item['image']) }}"
+                             alt="{{ item['title'] }}"
+                             class="artist-thumb">
+                    {% else %}
+                        <div class="artist-thumb artist-thumb-placeholder">No Image</div>
+                    {% endif %}
+
+                    <div class="artist-list-main compact-main">
+                        <div class="artist-list-top compact-top">
+                            <div class="artist-list-heading compact-heading">
+                                <h3>{{ item['title'] }}</h3>
+                                <p class="artist-style">{{ item['category'] }}</p>
+                                <p class="artist-style">{{ item['created_at'] }}</p>
+                                <p class="artist-style">
+                                    {{ item['content'][:160] }}{% if item['content']|length > 160 %}...{% endif %}
+                                </p>
+                            </div>
+
+                            <span class="table-badge {% if item['status'] == 'Published' %}active{% else %}pending{% endif %}">
+                                {{ item['status'] }}
+                            </span>
+                        </div>
+
+                        <div class="artist-card-actions compact-actions">
+                            <a href="{{ url_for('edit_news', news_id=item['id']) }}" class="table-btn">Edit</a>
+
+                            <form method="POST"
+                                  action="{{ url_for('delete_news', news_id=item['id']) }}"
+                                  onsubmit="return confirm('Delete this news item?');">
+                                <button type="submit" class="table-btn danger">Delete</button>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+                {% endfor %}
+            {% else %}
+                <div class="admin-panel">
+                    <p style="text-align:center;">No news found.</p>
+                </div>
+            {% endif %}
+        </div>
+    </div>
+
+</div>
+
+<!-- ADD NEWS MODAL -->
+<div id="newsModal" class="artist-modal-overlay">
+    <div class="artist-modal-box">
+        <div class="artist-modal-header">
+            <h3>Add News</h3>
+            <button type="button" class="artist-modal-close" onclick="closeNewsModal()">&times;</button>
+        </div>
+
+        <div class="artist-modal-body">
+            <form method="POST" action="{{ url_for('add_news') }}" class="artist-admin-form" enctype="multipart/form-data">
+                <div class="form-grid-2">
+                    <input type="text" name="title" placeholder="News Title" required>
+                    <input type="text" name="category" placeholder="Category e.g. Interview, Release, Event" required>
+
+                    <select name="status" required>
+                        <option value="Published">Published</option>
+                        <option value="Draft">Draft</option>
+                    </select>
+
+                    <input type="file" name="image" accept=".png,.jpg,.jpeg,.webp">
+                </div>
+
+                <textarea name="content" rows="6" placeholder="Write full news content here..." style="width:100%; margin-top:16px;" required></textarea>
+
+                <div class="modal-action-row">
+                    <button type="button" class="secondary-admin-btn" onclick="closeNewsModal()">Cancel</button>
+                    <button type="submit" class="primary-admin-btn">Save News</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+{% with messages = get_flashed_messages() %}
+    {% if messages %}
+        <div class="flash-wrap">
+            {% for message in messages %}
+                <div class="admin-flash-message">{{ message }}</div>
+            {% endfor %}
+        </div>
+    {% endif %}
+{% endwith %}
+
+<script>
+    function openNewsModal() {
+        document.getElementById("newsModal").classList.add("show");
+        document.body.classList.add("modal-open");
+    }
+
+    function closeNewsModal() {
+        document.getElementById("newsModal").classList.remove("show");
+        document.body.classList.remove("modal-open");
+    }
+
+    window.addEventListener("click", function(e) {
+        const modal = document.getElementById("newsModal");
+        if (e.target === modal) {
+            closeNewsModal();
+        }
+    });
+</script>
+
+{% endblock %}

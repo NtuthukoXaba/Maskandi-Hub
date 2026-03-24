@@ -1,0 +1,65 @@
+{% extends 'base.html' %}
+
+{% block title %}{{ article.title }}{% endblock %}
+
+{% block content %}
+<section class="inner-hero">
+    <span class="tag">{{ article.category }}</span>
+    <h1>{{ article.title }}</h1>
+    <p>Published on {{ article.created_at[:10] }}</p>
+</section>
+
+<section class="section-block news-details-layout-pro">
+
+    <article class="news-details-main">
+        <div class="news-details-card news-details-card-pro">
+
+            {% if article.image %}
+            <div class="news-details-image-wrap">
+                <img src="{{ url_for('static', filename='uploads/news/' ~ article.image) }}" class="news-details-image">
+            </div>
+            {% endif %}
+
+            <div class="news-meta-row">
+                <span class="news-badge">{{ article.category }}</span>
+                <span class="news-date">{{ article.created_at[:10] }}</span>
+            </div>
+
+            <h2 class="news-details-title">{{ article.title }}</h2>
+
+            <div class="news-details-content">
+                {% for paragraph in article.content.split('\n') %}
+                    {% if paragraph.strip() %}
+                        <p>{{ paragraph }}</p>
+                    {% endif %}
+                {% endfor %}
+            </div>
+
+            <div class="news-details-actions">
+                <a href="{{ url_for('news') }}" class="card-link">← Back to News</a>
+            </div>
+        </div>
+    </article>
+
+    <aside class="news-sidebar">
+        <div class="news-sidebar-card news-sidebar-card-pro">
+            <h3>Latest News</h3>
+
+            {% if latest_news %}
+                <div class="latest-news-list">
+                    {% for item in latest_news %}
+                    <a href="{{ url_for('news_details', news_id=item.id) }}" class="latest-news-item">
+                        <span class="news-badge">{{ item.category }}</span>
+                        <h4>{{ item.title }}</h4>
+                        <p>{{ item.created_at[:10] }}</p>
+                    </a>
+                    {% endfor %}
+                </div>
+            {% else %}
+                <p class="sidebar-empty">No other news articles yet.</p>
+            {% endif %}
+        </div>
+    </aside>
+
+</section>
+{% endblock %}

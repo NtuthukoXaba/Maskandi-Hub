@@ -1,0 +1,97 @@
+{% set current_path = request.path %}
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}Maskandi Hub{% endblock %}</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+
+    <div class="site-bg">
+        <div class="bg-orb orb1"></div>
+        <div class="bg-orb orb2"></div>
+        <div class="bg-orb orb3"></div>
+        <div class="grid-overlay"></div>
+    </div>
+
+    <header class="site-header fixed-header">
+        <nav class="navbar">
+            <a href="{{ url_for('home') }}" class="logo-wrap" style="text-decoration:none; color:inherit;">
+                <img src="{{ url_for('static', filename='images/Maskandi_Hub.png') }}" alt="Maskandi Hub Logo" class="site-logo">
+                <div class="logo-text">
+                    <h2>Maskandi Hub</h2>
+                    <span>Music, artists, charts, votes and events</span>
+                </div>
+            </a>
+
+            <button class="mobile-nav-toggle" type="button" onclick="openMobileMenu()" aria-label="Open navigation">
+                ☰
+            </button>
+
+            <div class="nav-links desktop-nav">
+                <a href="{{ url_for('home') }}" class="{% if current_path == url_for('home') %}active-nav{% endif %}">Home</a>
+                <a href="{{ url_for('artists') }}" class="{% if current_path == url_for('artists') %}active-nav{% endif %}">Artists</a>
+                <a href="{{ url_for('top20') }}" class="{% if current_path == url_for('top20') %}active-nav{% endif %}">Top 20</a>
+                <a href="{{ url_for('vote') }}" class="{% if current_path == url_for('vote') %}active-nav{% endif %}">Vote</a>
+                <a href="{{ url_for('events') }}" class="{% if current_path == url_for('events') %}active-nav{% endif %}">Events</a>
+                <a href="{{ url_for('news') }}" class="{% if current_path == url_for('news') %}active-nav{% endif %}">News</a>
+                <a href="{{ url_for('login') }}">Admin</a>
+            </div>
+        </nav>
+    </header>
+
+    <div class="mobile-nav-overlay" id="mobileNavOverlay" onclick="closeMobileMenu()"></div>
+
+    <aside class="mobile-side-menu" id="mobileSideMenu">
+        <div class="mobile-menu-header">
+            <div class="mobile-brand">
+                <img src="{{ url_for('static', filename='images/Maskandi_Hub.png') }}" alt="Maskandi Hub Logo" class="site-logo">
+                <div class="logo-text">
+                    <h2>Maskandi Hub</h2>
+                    <span>Browse the platform</span>
+                </div>
+            </div>
+
+            <button class="mobile-close-btn" type="button" onclick="closeMobileMenu()" aria-label="Close navigation">
+                ×
+            </button>
+        </div>
+
+        <div class="mobile-menu-links">
+            <a href="{{ url_for('home') }}" class="{% if current_path == url_for('home') %}active-nav{% endif %}" onclick="closeMobileMenu()">Home</a>
+            <a href="{{ url_for('artists') }}" class="{% if current_path == url_for('artists') %}active-nav{% endif %}" onclick="closeMobileMenu()">Artists</a>
+            <a href="{{ url_for('top20') }}" class="{% if current_path == url_for('top20') %}active-nav{% endif %}" onclick="closeMobileMenu()">Top 20</a>
+            <a href="{{ url_for('vote') }}" class="{% if current_path == url_for('vote') %}active-nav{% endif %}" onclick="closeMobileMenu()">Vote</a>
+            <a href="{{ url_for('events') }}" class="{% if current_path == url_for('events') %}active-nav{% endif %}" onclick="closeMobileMenu()">Events</a>
+            <a href="{{ url_for('news') }}" class="{% if current_path == url_for('news') %}active-nav{% endif %}" onclick="closeMobileMenu()">News</a>
+            <a href="{{ url_for('login') }}" onclick="closeMobileMenu()">Admin</a>
+        </div>
+    </aside>
+
+    <main class="page-shell scrollable-page">
+        {% block content %}{% endblock %}
+    </main>
+
+    <footer class="footer">
+        <div class="footer-line"></div>
+        <p>&copy; 2026 Maskandi Hub. Celebrating the sound and culture of Maskandi.</p>
+    </footer>
+
+    <script>
+        function openMobileMenu() {
+            document.getElementById("mobileSideMenu").classList.add("show");
+            document.getElementById("mobileNavOverlay").classList.add("show");
+            document.body.classList.add("menu-open");
+        }
+
+        function closeMobileMenu() {
+            document.getElementById("mobileSideMenu").classList.remove("show");
+            document.getElementById("mobileNavOverlay").classList.remove("show");
+            document.body.classList.remove("menu-open");
+        }
+    </script>
+</body>
+</html>

@@ -1,0 +1,53 @@
+{% extends 'base.html' %}
+
+{% block title %}Top 20 Trending Songs{% endblock %}
+
+{% block content %}
+<section class="inner-hero">
+    <span class="tag">WEEKLY CHART</span>
+    <h1>Top 20 Trending Songs</h1>
+    <p>The hottest Maskandi songs right now.</p>
+</section>
+
+<section class="section-block top20-section">
+    <div class="chart-board chart-board-pro">
+        {% if top_songs %}
+            {% for song in top_songs %}
+            <div class="chart-row chart-row-pro">
+                <div class="chart-rank-wrap">
+                    <div class="rank">{{ song.rank_number }}</div>
+                </div>
+
+                <div class="chart-main-info">
+                    {% if song.image %}
+                    <div class="chart-cover">
+                        <img
+                            src="{{ url_for('static', filename='uploads/songs/' ~ song.image) }}"
+                            alt="{{ song.song_title }}"
+                            class="chart-cover-img"
+                        >
+                    </div>
+                    {% else %}
+                    <div class="chart-cover chart-cover-fallback">
+                        <span>{{ song.song_title[0] }}</span>
+                    </div>
+                    {% endif %}
+
+                    <div class="track-info">
+                        <h3>{{ song.song_title }}</h3>
+                        <p>{{ song.artist_name }}</p>
+                    </div>
+                </div>
+
+                
+            </div>
+            {% endfor %}
+        {% else %}
+            <div class="empty-state chart-empty-state">
+                <h3>No chart songs available yet</h3>
+                <p>Please add songs from the admin panel to display the Top 20 chart.</p>
+            </div>
+        {% endif %}
+    </div>
+</section>
+{% endblock %}

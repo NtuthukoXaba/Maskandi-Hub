@@ -1,0 +1,42 @@
+{% extends 'admin/admin_base.html' %}
+
+{% block admin_page_title %}Edit Event{% endblock %}
+{% block admin_page_subtitle %}Update event information{% endblock %}
+
+{% block admin_content %}
+<div class="admin-panel artist-form-panel">
+    <h3>Edit Event</h3>
+
+    <form method="POST" class="artist-admin-form" enctype="multipart/form-data">
+        <div class="form-grid-2">
+            <input type="text" name="name" value="{{ event['name'] }}" placeholder="Event Name" required>
+            <input type="datetime-local" name="event_datetime" value="{{ event['event_datetime'] }}" required>
+
+            <input type="text" name="venue" value="{{ event['venue'] }}" placeholder="Venue" required>
+            <input type="text" name="ticket_link" value="{{ event['ticket_link'] or '' }}" placeholder="Ticket Link (optional)">
+
+            <select name="status" required>
+                <option value="Published" {% if event['status'] == 'Published' %}selected{% endif %}>Published</option>
+                <option value="Draft" {% if event['status'] == 'Draft' %}selected{% endif %}>Draft</option>
+            </select>
+
+            <input type="file" name="image" accept=".png,.jpg,.jpeg,.webp">
+        </div>
+
+        {% if event['image'] %}
+        <div style="margin: 18px 0 10px;">
+            <p style="margin-bottom: 10px; color: #fff;">Current Event Image</p>
+            <img src="{{ url_for('static', filename='uploads/events/' ~ event['image']) }}"
+                 alt="{{ event['name'] }}"
+                 class="artist-thumb"
+                 style="width: 90px; height: 90px; border-radius: 16px;">
+        </div>
+        {% endif %}
+
+        <div class="modal-action-row">
+            <a href="{{ url_for('manage_events') }}" class="secondary-admin-btn">Back</a>
+            <button type="submit" class="primary-admin-btn">Update Event</button>
+        </div>
+    </form>
+</div>
+{% endblock %}

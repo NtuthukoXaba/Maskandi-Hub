@@ -1,0 +1,243 @@
+{% extends 'admin/admin_base.html' %}
+
+{% block admin_page_title %}Manage Votes{% endblock %}
+{% block admin_page_subtitle %}Create, schedule, filter and track voting events{% endblock %}
+
+{% block admin_content %}
+
+<div class="admin-toolbar stacked-toolbar">
+    <div class="toolbar-top-row">
+        <button type="button" class="primary-admin-btn" onclick="openVoteEventModal()">+ Create Voting Event</button>
+
+        <form method="GET" action="{{ url_for('manage_votes') }}" class="artist-filter-form">
+            <input type="text" name="search" placeholder="Search event title..." value="{{ search }}">
+
+            <select name="type">
+                <option value="">All Types</option>
+                <option value="Artist" {% if type_filter == 'Artist' %}selected{% endif %}>Artist</option>
+                <option value="Song" {% if type_filter == 'Song' %}selected{% endif %}>Song</option>
+            </select>
+
+            <select name="state">
+                <option value="">All Status</option>
+                <option value="Open" {% if state_filter == 'Open' %}selected{% endif %}>Open</option>
+                <option value="Closed" {% if state_filter == 'Closed' %}selected{% endif %}>Closed</option>
+                <option value="Upcoming" {% if state_filter == 'Upcoming' %}selected{% endif %}>Upcoming</option>
+                <option value="Ended" {% if state_filter == 'Ended' %}selected{% endif %}>Ended</option>
+            </select>
+
+            <button type="submit" class="primary-admin-btn">Apply</button>
+        </form>
+    </div>
+</div>
+
+<!-- CREATE EVENT MODAL -->
+<div id="voteEventModal" class="artist-modal-overlay">
+    <div class="artist-modal-box">
+        <div class="artist-modal-header">
+            <h3>Create Voting Event</h3>
+            <button type="button" class="artist-modal-close" onclick="closeVoteEventModal()">&times;</button>
+        </div>
+
+        <div class="artist-modal-body">
+            <form method="POST" action="{{ url_for('add_vote_event') }}" class="artist-admin-form" enctype="multipart/form-data">
+                <div class="form-grid-2">
+                    <select name="title" required>
+                        <option value="">Select Voting Event</option>
+                        <option value="Artist of the Month">Artist of the Month</option>
+                        <option value="Artist of the Year">Artist of the Year</option>
+                        <option value="Song of the Month">Song of the Month</option>
+                        <option value="Song of the Year">Song of the Year</option>
+                    </select>
+
+                    <select name="category_type" required>
+                        <option value="">Select Category Type</option>
+                        <option value="Artist">Artist</option>
+                        <option value="Song">Song</option>
+                    </select>
+
+                    <select name="status" required>
+                        <option value="Open">Open</option>
+                        <option value="Closed">Closed</option>
+                    </select>
+
+                    <input type="datetime-local" name="start_datetime" required>
+                    <input type="datetime-local" name="end_datetime" required>
+                </div>
+
+                <h4 style="margin-top: 18px;">Add Candidates While Creating Event</h4>
+
+                <div class="votes-create-candidates">
+                    {% for i in range(1, 6) %}
+                    <div class="vote-candidate-create-row">
+                        <input type="text" name="candidate_name_{{ i }}" placeholder="Candidate {{ i }} Name">
+                        <input type="file" name="candidate_image_{{ i }}" accept=".png,.jpg,.jpeg,.webp">
+                    </div>
+                    {% endfor %}
+                </div>
+
+                <div class="modal-action-row">
+                    <button type="button" class="secondary-admin-btn" onclick="closeVoteEventModal()">Cancel</button>
+                    <button type="submit" class="primary-admin-btn">Create Event</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<div class="admin-cards-grid small-cards">
+    <div class="admin-mini-box">
+        <h3>Open</h3>
+        <p>{{ summary_counts['Open'] }}</p>
+    </div>
+    <div class="admin-mini-box">
+        <h3>Closed</h3>
+        <p>{{ summary_counts['Closed'] }}</p>
+    </div>
+    <div class="admin-mini-box">
+        <h3>Upcoming</h3>
+        <p>{{ summary_counts['Upcoming'] }}</p>
+    </div>
+    <div class="admin-mini-box">
+        <h3>Ended</h3>
+        <p>{{ summary_counts['Ended'] }}</p>
+    </div>
+</div>
+
+<div class="votes-events-list">
+    {% if event_list %}
+        {% for item in event_list %}
+        <div class="admin-panel vote-event-panel">
+            <div class="vote-event-top">
+                <div>
+                    <h3>{{ item.event['title'] }}</h3>
+                    <p class="vote-event-meta">
+                        Type: {{ item.event['category_type'] }} |
+                        Live Status: {{ item.live_status }} |
+                        Rule: One vote per device
+                    </p>
+                    <p class="vote-event-meta">
+                        Start: {{ item.event['start_datetime'] or 'Not set' }} |
+                        End: {{ item.event['end_datetime'] or 'Not set' }}
+                    </p>
+                    <p class="vote-event-meta">
+                        Total Votes: {{ "{:,}".format(item.total_votes) }} |
+                        Leader:
+                        {% if item.leader %}
+                            {{ item.leader['candidate_name'] }} ({{ item.leader['votes_count'] }} votes)
+                        {% else %}
+                            No candidates yet
+                        {% endif %}
+                    </p>
+                </div>
+
+                <div class="vote-event-actions-top">
+                    <span class="table-badge
+                        {% if item.live_status == 'Open' %}active
+                        {% elif item.live_status == 'Upcoming' %}pending
+                        {% else %}inactive{% endif %}">
+                        {{ item.live_status }}
+                    </span>
+
+                    <form method="POST" action="{{ url_for('toggle_vote_event_status', event_id=item.event['id']) }}">
+                        <button type="submit" class="table-btn">
+                            {% if item.event['status'] == 'Open' %}Close{% else %}Open{% endif %}
+                        </button>
+                    </form>
+
+                    <form method="POST" action="{{ url_for('delete_vote_event', event_id=item.event['id']) }}" onsubmit="return confirm('Delete this event and all candidates?');">
+                        <button type="submit" class="table-btn danger">Delete Event</button>
+                    </form>
+                </div>
+            </div>
+
+            <div class="admin-sub-panel">
+                <h4>Add Candidate</h4>
+                <form method="POST" action="{{ url_for('add_vote_candidate', event_id=item.event['id']) }}" class="artist-admin-form" enctype="multipart/form-data">
+                    <div class="form-grid-2">
+                        <input type="text" name="candidate_name" placeholder="Candidate Name" required>
+                        <input type="file" name="image" accept=".png,.jpg,.jpeg,.webp">
+                    </div>
+
+                    <div class="modal-action-row">
+                        <button type="submit" class="primary-admin-btn">+ Add Candidate</button>
+                    </div>
+                </form>
+            </div>
+
+            <div class="votes-candidates-list">
+                {% if item.candidates %}
+                    {% for candidate_item in item.candidates %}
+                    <div class="vote-candidate-item">
+                        <div class="vote-candidate-left">
+                            {% if candidate_item.candidate['image'] %}
+                                <img src="{{ url_for('static', filename='uploads/votes/' ~ candidate_item.candidate['image']) }}"
+                                     alt="{{ candidate_item.candidate['candidate_name'] }}"
+                                     class="artist-thumb">
+                            {% else %}
+                                <div class="artist-thumb artist-thumb-placeholder">No Image</div>
+                            {% endif %}
+
+                            <div>
+                                <h4>{{ candidate_item.candidate['candidate_name'] }}</h4>
+                                <p>{{ "{:,}".format(candidate_item.candidate['votes_count']) }} votes</p>
+
+                                <div class="vote-progress-wrap">
+                                    <div class="vote-progress-bar">
+                                        <div class="vote-progress-fill" style="width: {{ candidate_item.progress }}%;"></div>
+                                    </div>
+                                    <small>{{ candidate_item.progress }}%</small>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="vote-candidate-actions">
+                            <form method="POST" action="{{ url_for('delete_vote_candidate', candidate_id=candidate_item.candidate['id']) }}" onsubmit="return confirm('Remove this candidate?');">
+                                <button type="submit" class="table-btn danger">Delete</button>
+                            </form>
+                        </div>
+                    </div>
+                    {% endfor %}
+                {% else %}
+                    <p class="empty-note">No candidates added yet.</p>
+                {% endif %}
+            </div>
+        </div>
+        {% endfor %}
+    {% else %}
+        <div class="admin-panel">
+            <p style="text-align:center;">No voting events found.</p>
+        </div>
+    {% endif %}
+</div>
+
+{% with messages = get_flashed_messages() %}
+    {% if messages %}
+        <div class="flash-wrap">
+            {% for message in messages %}
+                <div class="admin-flash-message">{{ message }}</div>
+            {% endfor %}
+        </div>
+    {% endif %}
+{% endwith %}
+
+<script>
+    function openVoteEventModal() {
+        document.getElementById("voteEventModal").classList.add("show");
+        document.body.classList.add("modal-open");
+    }
+
+    function closeVoteEventModal() {
+        document.getElementById("voteEventModal").classList.remove("show");
+        document.body.classList.remove("modal-open");
+    }
+
+    window.addEventListener("click", function(e) {
+        const modal = document.getElementById("voteEventModal");
+        if (e.target === modal) {
+            closeVoteEventModal();
+        }
+    });
+</script>
+
+{% endblock %}

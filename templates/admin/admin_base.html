@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Maskandi Hub Admin</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body class="admin-body">
+
+    <div class="admin-layout">
+        <!-- Sidebar -->
+        <aside class="admin-sidebar">
+            <div class="admin-brand">
+                <img src="{{ url_for('static', filename='images/Maskandi_Hub.png') }}" alt="Maskandi Hub Logo" class="site-logo">
+                <div>
+                    <h2>Maskandi Hub</h2>
+                    <p>Admin Panel</p>
+                </div>
+            </div>
+
+            <nav class="admin-side-nav">
+                <a href="{{ url_for('admin_dashboard') }}" class="admin-nav-link">
+                    <span class="admin-icon">⌂</span>
+                    <span>Dashboard</span>
+                </a>
+
+                <a href="{{ url_for('manage_artists') }}" class="admin-nav-link">
+                    <span class="admin-icon">🎤</span>
+                    <span>Artists</span>
+                </a>
+
+                <a href="{{ url_for('manage_songs') }}" class="admin-nav-link">
+                    <span class="admin-icon">♫</span>
+                    <span>Songs</span>
+                </a>
+
+                <a href="{{ url_for('manage_votes') }}" class="admin-nav-link">
+                    <span class="admin-icon">🗳</span>
+                    <span>Votes</span>
+                </a>
+
+                <a href="{{ url_for('manage_events') }}" class="admin-nav-link">
+                    <span class="admin-icon">📅</span>
+                    <span>Events</span>
+                </a>
+
+                <a href="{{ url_for('manage_news') }}" class="admin-nav-link">
+                    <span class="admin-icon">📰</span>
+                    <span>News</span>
+                </a>
+            </nav>
+
+            <div class="admin-sidebar-bottom">
+                <a href="{{ url_for('home') }}" class="admin-ghost-link">← Back to Website</a>
+            </div>
+        </aside>
+
+        <!-- Main -->
+        <div class="admin-main">
+            <header class="admin-topbar">
+                <div class="admin-topbar-left">
+                    <h1>{% block admin_page_title %}Admin Dashboard{% endblock %}</h1>
+                    <p>{% block admin_page_subtitle %}Manage your Maskandi Hub platform{% endblock %}</p>
+                </div>
+
+                <div class="admin-topbar-right">
+                    <div class="admin-search-box">
+                        <span>⌕</span>
+                        <input type="text" placeholder="Search...">
+                    </div>
+
+                    <div class="admin-user-box">
+                        <div class="admin-user-avatar">A</div>
+                        <div>
+                            <strong>Admin</strong>
+                            <small>Super Admin</small>
+                        </div>
+                    </div>
+                </div>
+            </header>
+
+            <section class="admin-content">
+                {% block admin_content %}{% endblock %}
+            </section>
+        </div>
+    </div>
+
+</body>
+</html>

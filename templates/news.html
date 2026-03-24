@@ -1,0 +1,53 @@
+{% extends 'base.html' %}
+
+{% block title %}Maskandi News{% endblock %}
+
+{% block content %}
+<section class="inner-hero">
+    <span class="tag">LATEST STORIES</span>
+    <h1>Maskandi News</h1>
+    <p>Artist interviews, new releases, event announcements, and more.</p>
+</section>
+
+<section class="section-block news-page-section">
+    <div class="content-grid two-grid news-grid-pro">
+        {% if news_items %}
+            {% for item in news_items %}
+            <div class="news-card news-card-pro">
+                <div class="news-card-inner">
+
+                    {% if item.image %}
+                    <div class="news-image-wrap">
+                        <img src="{{ url_for('static', filename='uploads/news/' ~ item.image) }}" class="news-image">
+                    </div>
+                    {% endif %}
+
+                    <div class="news-card-content">
+                        <div class="news-meta-top">
+                            <span class="news-badge">{{ item.category }}</span>
+                            <span class="news-date">{{ item.created_at[:10] }}</span>
+                        </div>
+
+                        <h3>{{ item.title }}</h3>
+
+                        <p>
+                            {{ item.content[:160] }}{% if item.content|length > 160 %}...{% endif %}
+                        </p>
+
+                        <a href="{{ url_for('news_details', news_id=item.id) }}" class="card-link news-read-btn">
+                            Read More →
+                        </a>
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        {% else %}
+            <div class="news-card news-card-pro news-empty-state">
+                <div class="news-badge">Update</div>
+                <h3>No news available yet</h3>
+                <p>Published news articles will appear here once they are added from the admin panel.</p>
+            </div>
+        {% endif %}
+    </div>
+</section>
+{% endblock %}

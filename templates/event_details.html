@@ -1,0 +1,85 @@
+{% extends 'base.html' %}
+
+{% block title %}{{ event.name }}{% endblock %}
+
+{% block content %}
+<section class="inner-hero">
+    <span class="tag">EVENT DETAILS</span>
+    <h1>{{ event.name }}</h1>
+    <p>Full details for this upcoming event.</p>
+</section>
+
+<section class="section-block event-details-page">
+    <div class="event-details-card event-details-card-pro">
+        {% if event.image %}
+        <div class="event-details-image-wrap">
+            <img src="{{ url_for('static', filename='uploads/events/' ~ event.image) }}" alt="{{ event.name }}" class="event-details-image">
+        </div>
+        {% endif %}
+
+        <div class="event-details-content event-details-content-pro">
+            <div class="event-details-head">
+                <h2>{{ event.name }}</h2>
+                <span class="event-status-pill">Upcoming</span>
+            </div>
+
+            <div class="event-details-meta-grid">
+                <div class="event-meta-box">
+                    <span>Date</span>
+                    <strong>{{ event.event_datetime[:10] }}</strong>
+                </div>
+                <div class="event-meta-box">
+                    <span>Time</span>
+                    <strong>{{ event.event_datetime[11:16] }}</strong>
+                </div>
+                <div class="event-meta-box event-meta-box-wide">
+                    <span>Venue</span>
+                    <strong>{{ event.venue }}</strong>
+                </div>
+            </div>
+
+            {% if event.ticket_link %}
+            <div class="event-ticket-box">
+                <span>Tickets</span>
+                <a href="{{ event.ticket_link }}" target="_blank">Book / View Ticket Link</a>
+            </div>
+            {% endif %}
+
+            <div class="event-actions">
+                <a href="{{ url_for('events') }}" class="secondary-btn">Back to Events</a>
+                {% if event.ticket_link %}
+                <a href="{{ event.ticket_link }}" target="_blank" class="primary-btn">Get Tickets</a>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</section>
+
+{% if upcoming_events %}
+<section class="section-block related-events-section">
+    <div class="section-heading">
+        <h2>Other Upcoming Events</h2>
+    </div>
+
+    <div class="content-grid two-grid events-grid-pro">
+        {% for item in upcoming_events %}
+        <div class="event-card event-card-pro related-event-card">
+            <div class="event-glow"></div>
+
+            <div class="event-card-body">
+                <h3>{{ item.name }}</h3>
+
+                <div class="event-meta-list">
+                    <p><strong>Date:</strong> {{ item.event_datetime[:10] }}</p>
+                    <p><strong>Time:</strong> {{ item.event_datetime[11:16] }}</p>
+                    <p><strong>Venue:</strong> {{ item.venue }}</p>
+                </div>
+
+                <a href="{{ url_for('event_details', event_id=item.id) }}" class="card-link event-link-btn">View Details</a>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+</section>
+{% endif %}
+{% endblock %}

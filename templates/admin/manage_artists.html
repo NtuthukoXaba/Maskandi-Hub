@@ -1,0 +1,169 @@
+{% extends 'admin/admin_base.html' %}
+
+{% block admin_page_title %}Manage Artists{% endblock %}
+{% block admin_page_subtitle %}Add, search, filter and manage Maskandi artists{% endblock %}
+
+{% block admin_content %}
+
+<div class="admin-toolbar stacked-toolbar">
+    <div class="toolbar-top-row">
+        <button type="button" class="primary-admin-btn" onclick="openArtistModal()">+ Add Artist</button>
+
+        <form method="GET" action="{{ url_for('manage_artists') }}" class="artist-filter-form">
+            <input type="text" name="search" placeholder="Search artist name..." value="{{ search }}">
+
+            <select name="style">
+                <option value="">All Styles</option>
+                {% for style in styles %}
+                    <option value="{{ style['style'] }}" {% if style_filter == style['style'] %}selected{% endif %}>
+                        {{ style['style'] }}
+                    </option>
+                {% endfor %}
+            </select>
+
+            <select name="status">
+                <option value="">All Status</option>
+                <option value="Active" {% if status_filter == 'Active' %}selected{% endif %}>Active</option>
+                <option value="Pending" {% if status_filter == 'Pending' %}selected{% endif %}>Pending</option>
+                <option value="Inactive" {% if status_filter == 'Inactive' %}selected{% endif %}>Inactive</option>
+            </select>
+
+            <select name="sort">
+                <option value="name_asc" {% if sort_by == 'name_asc' %}selected{% endif %}>Name A-Z</option>
+                <option value="name_desc" {% if sort_by == 'name_desc' %}selected{% endif %}>Name Z-A</option>
+                <option value="views_desc" {% if sort_by == 'views_desc' %}selected{% endif %}>Most Views</option>
+                <option value="views_asc" {% if sort_by == 'views_asc' %}selected{% endif %}>Least Views</option>
+            </select>
+
+            <button type="submit" class="primary-admin-btn">Apply</button>
+        </form>
+    </div>
+</div>
+<!-- ADD ARTIST MODAL -->
+<div id="artistModal" class="artist-modal-overlay">
+    <div class="artist-modal-box">
+        <div class="artist-modal-header">
+            <h3>Add New Artist</h3>
+            <button type="button" class="artist-modal-close" onclick="closeArtistModal()">&times;</button>
+        </div>
+
+        <div class="artist-modal-body">
+            <form method="POST" action="{{ url_for('add_artist') }}" class="artist-admin-form" enctype="multipart/form-data">
+                <div class="form-grid-2">
+                    <input type="text" name="name" placeholder="Artist Name" required>
+                    <input type="text" name="style" placeholder="Style (e.g Traditional Maskandi)" required>
+
+                    <select name="status" required>
+                        <option value="Active">Active</option>
+                        <option value="Pending">Pending</option>
+                        <option value="Inactive">Inactive</option>
+                    </select>
+
+                    <input type="file" name="image" accept=".png,.jpg,.jpeg,.webp">
+
+                    <input type="text" name="facebook" placeholder="Facebook Handle or Link">
+                    <input type="text" name="instagram" placeholder="Instagram Handle or Link">
+                    <input type="text" name="tiktok" placeholder="TikTok Handle or Link">
+                    <input type="text" name="youtube_channel" placeholder="YouTube Channel Link">
+                    <input type="text" name="spotify_channel" placeholder="Spotify Channel Link">
+                </div>
+
+                <textarea name="history" rows="5" placeholder="Short artist history..."></textarea>
+
+                <h4>Top 5 Songs</h4>
+
+                <div class="songs-entry-wrap">
+                    {% for i in range(1, 6) %}
+                    <div class="song-row">
+                        <input type="text" name="song_title_{{ i }}" placeholder="Song {{ i }} Title">
+                        <input type="number" name="youtube_views_{{ i }}" placeholder="YouTube Views" min="0">
+                        <input type="number" name="spotify_streams_{{ i }}" placeholder="Spotify Streams" min="0">
+                    </div>
+                    {% endfor %}
+                </div>
+
+                <div class="modal-action-row">
+                    <button type="button" class="secondary-admin-btn" onclick="closeArtistModal()">Cancel</button>
+                    <button type="submit" class="primary-admin-btn">Save Artist</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- COMPACT SCROLLABLE ARTIST LIST -->
+<div class="artists-list-scroll-area">
+    <div class="artists-list-wrapper compact-artists-list">
+        {% if artist_list %}
+            {% for item in artist_list %}
+            <div class="artist-list-item compact-item">
+                <div class="artist-list-number">{{ loop.index }}</div>
+
+                {% if item.artist['image'] %}
+                    <img src="{{ url_for('static', filename='uploads/artists/' ~ item.artist['image']) }}"
+                         alt="{{ item.artist['name'] }}"
+                         class="artist-thumb">
+                {% else %}
+                    <div class="artist-thumb artist-thumb-placeholder">No Image</div>
+                {% endif %}
+
+                <div class="artist-list-main compact-main">
+                    <div class="artist-list-top compact-top">
+                        <div class="artist-list-heading compact-heading">
+                            <h3>{{ item.artist['name'] }}</h3>
+                            <p class="artist-style">{{ item.artist['style'] }}</p>
+                        </div>
+
+                        <span class="table-badge {% if item.artist['status'] == 'Active' %}active{% elif item.artist['status'] == 'Pending' %}pending{% else %}inactive{% endif %}">
+                            {{ item.artist['status'] }}
+                        </span>
+                    </div>
+
+                    <div class="artist-card-actions compact-actions">
+                        <a href="{{ url_for('edit_artist', artist_id=item.artist['id']) }}" class="table-btn">Edit</a>
+
+                        <form method="POST" action="{{ url_for('delete_artist', artist_id=item.artist['id']) }}" onsubmit="return confirm('Delete this artist?');">
+                            <button type="submit" class="table-btn danger">Delete</button>
+                        </form>
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        {% else %}
+            <div class="admin-panel">
+                <p style="text-align:center;">No artists found.</p>
+            </div>
+        {% endif %}
+    </div>
+</div>
+
+{% with messages = get_flashed_messages() %}
+    {% if messages %}
+        <div class="flash-wrap">
+            {% for message in messages %}
+                <div class="admin-flash-message">{{ message }}</div>
+            {% endfor %}
+        </div>
+    {% endif %}
+{% endwith %}
+
+<script>
+    function openArtistModal() {
+        document.getElementById("artistModal").classList.add("show");
+        document.body.classList.add("modal-open");
+    }
+
+    function closeArtistModal() {
+        document.getElementById("artistModal").classList.remove("show");
+        document.body.classList.remove("modal-open");
+    }
+
+    window.addEventListener("click", function(e) {
+        const modal = document.getElementById("artistModal");
+        if (e.target === modal) {
+            closeArtistModal();
+        }
+    });
+</script>
+
+{% endblock %}

@@ -1,0 +1,118 @@
+{% extends 'admin/admin_base.html' %}
+
+{% block admin_page_title %}Dashboard{% endblock %}
+{% block admin_page_subtitle %}Overview of songs, artists, votes, events and news{% endblock %}
+
+{% block admin_content %}
+<div class="admin-cards-grid">
+    <div class="admin-summary-card">
+        <div class="summary-icon blue">🎤</div>
+        <div>
+            <h3>{{ total_artists }}</h3>
+            <p>Total Artists</p>
+        </div>
+    </div>
+
+    <div class="admin-summary-card">
+        <div class="summary-icon purple">♫</div>
+        <div>
+            <h3>{{ total_songs }}</h3>
+            <p>Total Chart Songs</p>
+        </div>
+    </div>
+
+    <div class="admin-summary-card">
+        <div class="summary-icon green">🗳</div>
+        <div>
+            <h3>{{ total_votes }}</h3>
+            <p>Total Votes</p>
+        </div>
+    </div>
+
+    <div class="admin-summary-card">
+        <div class="summary-icon orange">📅</div>
+        <div>
+            <h3>{{ upcoming_events }}</h3>
+            <p>Upcoming Events</p>
+        </div>
+    </div>
+
+    <div class="admin-summary-card">
+        <div class="summary-icon blue">📰</div>
+        <div>
+            <h3>{{ total_news }}</h3>
+            <p>Total News</p>
+        </div>
+    </div>
+</div>
+
+<div class="admin-grid-2">
+    <div class="admin-panel">
+        <div class="panel-header">
+            <h3>Platform Summary</h3>
+            <span>Live data</span>
+        </div>
+
+        <div class="admin-list">
+            <div class="admin-list-item">
+                <strong>{{ total_artists }}</strong>
+                <p>Artists currently stored in the platform.</p>
+            </div>
+            <div class="admin-list-item">
+                <strong>{{ total_songs }}</strong>
+                <p>Chart songs currently available in the system.</p>
+            </div>
+            <div class="admin-list-item">
+                <strong>{{ total_votes }}</strong>
+                <p>Total votes recorded from all voting categories.</p>
+            </div>
+            <div class="admin-list-item">
+                <strong>{{ upcoming_events }}</strong>
+                <p>Published upcoming events available for users to view.</p>
+            </div>
+            <div class="admin-list-item">
+                <strong>{{ total_news }}</strong>
+                <p>News articles added to the platform.</p>
+            </div>
+        </div>
+    </div>
+
+    <div class="admin-panel">
+        <div class="panel-header">
+            <h3>Quick Actions</h3>
+            <span>Manage fast</span>
+        </div>
+
+        <div class="quick-actions">
+            <a href="{{ url_for('manage_artists') }}">Manage Artists</a>
+            <a href="{{ url_for('manage_songs') }}">Manage Songs</a>
+            <a href="{{ url_for('manage_votes') }}">Manage Votes</a>
+            <a href="{{ url_for('manage_events') }}">Manage Events</a>
+            <a href="{{ url_for('manage_news') }}">Manage News</a>
+        </div>
+    </div>
+</div>
+
+<div class="admin-panel">
+    <div class="panel-header">
+        <h3>Recent Updates</h3>
+        <span>Latest content</span>
+    </div>
+
+    <div class="admin-list">
+        {% if recent_updates %}
+            {% for item in recent_updates %}
+            <div class="admin-list-item">
+                <strong>{{ item.title }}</strong>
+                <p>{{ item.description }}</p>
+            </div>
+            {% endfor %}
+        {% else %}
+            <div class="admin-list-item">
+                <strong>No recent updates yet</strong>
+                <p>Add artists, songs, events, votes, or news to see activity here.</p>
+            </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

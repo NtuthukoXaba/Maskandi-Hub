@@ -1,0 +1,262 @@
+{% extends 'base.html' %}
+
+{% block title %}Maskandi Hub | Home{% endblock %}
+
+{% block content %}
+<section class="hero hero-home">
+    <div class="hero-text">
+        <span class="tag">LIVE NOW • MASKANDI CULTURE</span>
+        <h1>Feel the Rhythm of <span>Maskandi Hub</span></h1>
+        <p>
+            Discover trending songs, vote for your favorite artists, follow new releases,
+            and stay updated with Maskandi events and news — all in one modern platform.
+        </p>
+
+        <div class="hero-actions">
+            <a href="{{ url_for('vote') }}" class="btn btn-primary">Vote Now</a>
+            <a href="{{ url_for('top20') }}" class="btn btn-secondary">View Top 20</a>
+        </div>
+
+        <div class="stats-row">
+            <div class="stat-card">
+                <h3>{{ total_songs }}</h3>
+                <p>Trending Tracks</p>
+            </div>
+            <div class="stat-card">
+                <h3>{{ public_vote_events|length }}</h3>
+                <p>Voting Categories</p>
+            </div>
+            <div class="stat-card">
+                <h3>{{ total_votes }}</h3>
+                <p>Music Updates</p>
+            </div>
+        </div>
+    </div>
+
+    <div class="hero-visual">
+        <div class="video-card premium-hero-card">
+            <div class="video-topbar">
+                <span></span><span></span><span></span>
+            </div>
+
+            <div class="video-screen premium-screen">
+                <div class="screen-glow screen-glow-left"></div>
+                <div class="screen-glow screen-glow-right"></div>
+                <div class="scan-light"></div>
+
+                <div class="guitar-bg">
+                    <div class="guitar-neck"></div>
+                    <div class="guitar-body"></div>
+                    <div class="guitar-hole"></div>
+                    <div class="guitar-strings">
+                        <span></span><span></span><span></span><span></span><span></span><span></span>
+                    </div>
+                </div>
+
+                <div class="play-ring">▶</div>
+
+                <div class="equalizer hero-equalizer">
+                    <span></span><span></span><span></span><span></span><span></span>
+                    <span></span><span></span><span></span><span></span><span></span>
+                </div>
+
+                <div class="hero-label-pill">Featured Sound Experience</div>
+
+                <div class="video-caption hero-caption">
+                    <h3>Maskandi Hub</h3>
+                    <p>Traditional Maskandi • Rhythm, Stories, and Culture in Motion</p>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+
+<section class="content-grid three-grid">
+    <div class="glass-card feature-card">
+        <div class="card-head">
+            <span class="mini-tag">Top 20</span>
+            <h3>Trending Songs</h3>
+        </div>
+        <ul class="music-list">
+            {% for song in top_chart_songs[:3] %}
+                <li><strong>#{{ song['rank_number'] }}</strong> {{ song['song_title'] }} <span>{{ song['artist_name'] }}</span></li>
+            {% else %}
+                <li>No chart songs yet</li>
+            {% endfor %}
+        </ul>
+    </div>
+
+    <div class="glass-card feature-card pulse-card">
+        <div class="card-head">
+            <span class="mini-tag">Awards</span>
+            <h3>Vote Categories</h3>
+        </div>
+        <ul class="info-list">
+            {% for voting in public_vote_events %}
+                <li>{{ voting['event']['title'] }}</li>
+            {% else %}
+                <li>No live voting categories yet</li>
+            {% endfor %}
+        </ul>
+    </div>
+
+    <div class="glass-card feature-card">
+        <div class="card-head">
+            <span class="mini-tag">Alerts</span>
+            <h3>Latest Updates</h3>
+        </div>
+        <ul class="info-list">
+            {% for item in latest_news %}
+                <li>{{ item['title'] }}</li>
+            {% else %}
+                <li>No latest updates yet</li>
+            {% endfor %}
+        </ul>
+    </div>
+</section>
+
+<section class="section-block">
+    <div class="section-title">
+        <h2>Experience the Sound</h2>
+        <p>Designed to feel like live music, even without using videos or changing your existing images.</p>
+    </div>
+
+    <div class="content-grid two-grid">
+        <div class="wide-showcase">
+            <div class="showcase-screen">
+                <div class="floating-waves"></div>
+                <div class="showcase-text">
+                    <span class="mini-tag">NEW RELEASES</span>
+                    {% if top_chart_songs %}
+                        <h3>{{ top_chart_songs[0]['song_title'] }}</h3>
+                        <p>{{ top_chart_songs[0]['artist_name'] }} is currently leading the published chart songs on the platform.</p>
+                    {% else %}
+                        <h3>Visual music cards with motion, depth, and energy</h3>
+                        <p>This section can later hold songs, artist cards, or live release updates.</p>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+
+        <div class="stack-panel">
+            <div class="glass-card small-panel">
+                <h4>Upcoming Events</h4>
+                {% if upcoming_events %}
+                    <p>
+                        {% for event in upcoming_events %}
+                            {{ event['venue'] }}{% if not loop.last %} • {% endif %}
+                        {% endfor %}
+                    </p>
+                {% else %}
+                    <p>No upcoming events yet.</p>
+                {% endif %}
+            </div>
+            <div class="glass-card small-panel">
+                <h4>Maskandi News</h4>
+                {% if latest_news %}
+                    <p>{{ latest_news[0]['title'] }}</p>
+                {% else %}
+                    <p>Album launches, interviews, and community stories.</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</section>
+
+<section class="section-block">
+    <div class="section-title">
+        <h2>Featured Artists</h2>
+        <p>Popular artists currently active on the platform.</p>
+    </div>
+
+    <div class="content-grid three-grid">
+        {% for artist in featured_artists %}
+        <div class="artist-card">
+            {% if artist['image'] %}
+                <img src="{{ url_for('static', filename='uploads/artists/' ~ artist['image']) }}"
+                     alt="{{ artist['name'] }}"
+                     style="width:100%; height:240px; object-fit:cover; border-radius:20px; margin-bottom:18px;">
+            {% else %}
+                <div class="avatar-circle">{{ artist['name'][0] }}</div>
+            {% endif %}
+
+            <h3>{{ artist['name'] }}</h3>
+            <p>{{ artist['style'] }}</p>
+            <p>Total views: {{ artist['total_views'] }}</p>
+            <a href="{{ url_for('artists') }}" class="card-link">View Artist</a>
+        </div>
+        {% else %}
+        <div class="glass-card">
+            <h3>No artists yet</h3>
+            <p>Add artists from the admin panel to display them here.</p>
+        </div>
+        {% endfor %}
+    </div>
+</section>
+
+<section class="section-block">
+    <div class="section-title">
+        <h2>Upcoming Events</h2>
+        <p>Published events people can look forward to.</p>
+    </div>
+
+    <div class="content-grid three-grid">
+        {% for event in upcoming_events %}
+        <div class="event-card">
+            <div class="event-glow"></div>
+
+            {% if event['image'] %}
+                <img src="{{ url_for('static', filename='uploads/events/' ~ event['image']) }}"
+                     alt="{{ event['name'] }}"
+                     style="width:100%; height:220px; object-fit:cover; border-radius:18px; margin-bottom:16px;">
+            {% endif %}
+
+            <h3>{{ event['name'] }}</h3>
+            <p>{{ event['venue'] }}</p>
+            <p>{{ event['event_datetime'] }}</p>
+
+            {% if event['ticket_link'] %}
+                <a href="{{ event['ticket_link'] }}" target="_blank" class="card-link">Get Tickets</a>
+            {% else %}
+                <a href="{{ url_for('events') }}" class="card-link">View Event</a>
+            {% endif %}
+        </div>
+        {% else %}
+        <div class="glass-card">
+            <h3>No upcoming events yet</h3>
+            <p>Add published events from the admin panel to show them here.</p>
+        </div>
+        {% endfor %}
+    </div>
+</section>
+
+<section class="section-block">
+    <div class="section-title">
+        <h2>Latest News</h2>
+        <p>Fresh stories and updates from the Maskandi scene.</p>
+    </div>
+
+    <div class="content-grid three-grid">
+        {% for item in latest_news %}
+        <div class="news-card">
+            <span class="news-badge">{{ item['category'] }}</span>
+
+            {% if item['image'] %}
+                <img src="{{ url_for('static', filename='uploads/news/' ~ item['image']) }}"
+                     alt="{{ item['title'] }}"
+                     style="width:100%; height:220px; object-fit:cover; border-radius:18px; margin-bottom:16px;">
+            {% endif %}
+
+            <h3>{{ item['title'] }}</h3>
+            <p>{{ item['content'][:140] }}{% if item['content']|length > 140 %}...{% endif %}</p>
+            <a href="{{ url_for('news') }}" class="card-link">Read More</a>
+        </div>
+        {% else %}
+        <div class="glass-card">
+            <h3>No news yet</h3>
+            <p>Publish news from the admin section to display updates here.</p>
+        </div>
+        {% endfor %}
+    </div>
+</section>
+{% endblock %}

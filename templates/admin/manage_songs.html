@@ -1,0 +1,141 @@
+{% extends 'admin/admin_base.html' %}
+
+{% block admin_page_title %}Manage Songs Chart{% endblock %}
+{% block admin_page_subtitle %}Manage chart songs, ranks, and trending entries{% endblock %}
+
+{% block admin_content %}
+
+<div class="admin-toolbar stacked-toolbar">
+    <div class="toolbar-top-row">
+        <button type="button" class="primary-admin-btn" onclick="openSongModal()">+ Add Song</button>
+
+        <form method="GET" action="{{ url_for('manage_songs') }}" class="artist-filter-form">
+            <input type="text" name="search" placeholder="Search song or artist..." value="{{ search }}">
+
+            <select name="status">
+                <option value="">All Status</option>
+                <option value="Published" {% if status_filter == 'Published' %}selected{% endif %}>Published</option>
+                <option value="Draft" {% if status_filter == 'Draft' %}selected{% endif %}>Draft</option>
+            </select>
+
+            <button type="submit" class="primary-admin-btn">Apply</button>
+        </form>
+    </div>
+</div>
+
+<!-- ADD SONG MODAL -->
+<div id="songModal" class="artist-modal-overlay">
+    <div class="artist-modal-box">
+        <div class="artist-modal-header">
+            <h3>Add New Chart Song</h3>
+            <button type="button" class="artist-modal-close" onclick="closeSongModal()">&times;</button>
+        </div>
+
+        <div class="artist-modal-body">
+            <form method="POST" action="{{ url_for('add_chart_song') }}" class="artist-admin-form" enctype="multipart/form-data">
+                <div class="form-grid-2">
+                    <input type="text" name="artist_name" placeholder="Artist Name" required>
+                    <input type="text" name="song_title" placeholder="Song Name" required>
+
+                    <input type="number" name="rank_number" placeholder="Rank Number" min="1" required>
+
+                    <select name="status" required>
+                        <option value="Published">Published</option>
+                        <option value="Draft">Draft</option>
+                    </select>
+
+                    <input type="file" name="image" accept=".png,.jpg,.jpeg,.webp">
+                </div>
+
+                <div class="modal-action-row">
+                    <button type="button" class="secondary-admin-btn" onclick="closeSongModal()">Cancel</button>
+                    <button type="submit" class="primary-admin-btn">Save Song</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<div class="artists-list-scroll-area">
+    <div class="compact-artists-list">
+        {% if chart_songs %}
+            {% for song in chart_songs %}
+            <div class="artist-list-item compact-item">
+                <div class="artist-list-number">#{{ song['rank_number'] }}</div>
+
+                {% if song['image'] %}
+                    <img src="{{ url_for('static', filename='uploads/songs/' ~ song['image']) }}"
+                         alt="{{ song['song_title'] }}"
+                         class="artist-thumb">
+                {% else %}
+                    <div class="artist-thumb artist-thumb-placeholder">No Image</div>
+                {% endif %}
+
+                <div class="artist-list-main compact-main">
+                    <div class="artist-list-top compact-top">
+                        <div class="artist-list-heading compact-heading">
+                            <h3>{{ song['song_title'] }}</h3>
+                            <p class="artist-style">{{ song['artist_name'] }}</p>
+                        </div>
+
+                        <span class="table-badge {% if song['status'] == 'Published' %}active{% else %}pending{% endif %}">
+                            {{ song['status'] }}
+                        </span>
+                    </div>
+
+                    <div class="artist-card-actions compact-actions">
+                        <form method="POST" action="{{ url_for('move_chart_song_up', song_id=song['id']) }}">
+                            <button type="submit" class="table-btn">↑</button>
+                        </form>
+
+                        <form method="POST" action="{{ url_for('move_chart_song_down', song_id=song['id']) }}">
+                            <button type="submit" class="table-btn">↓</button>
+                        </form>
+
+                        <a href="{{ url_for('edit_chart_song', song_id=song['id']) }}" class="table-btn">Edit</a>
+
+                        <form method="POST" action="{{ url_for('delete_chart_song', song_id=song['id']) }}" onsubmit="return confirm('Delete this chart song?');">
+                            <button type="submit" class="table-btn danger">Delete</button>
+                        </form>
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        {% else %}
+            <div class="admin-panel">
+                <p style="text-align:center;">No chart songs found.</p>
+            </div>
+        {% endif %}
+    </div>
+</div>
+
+{% with messages = get_flashed_messages() %}
+    {% if messages %}
+        <div class="flash-wrap">
+            {% for message in messages %}
+                <div class="admin-flash-message">{{ message }}</div>
+            {% endfor %}
+        </div>
+    {% endif %}
+{% endwith %}
+
+<script>
+    function openSongModal() {
+        document.getElementById("songModal").classList.add("show");
+        document.body.classList.add("modal-open");
+    }
+
+    function closeSongModal() {
+        document.getElementById("songModal").classList.remove("show");
+        document.body.classList.remove("modal-open");
+    }
+
+    window.addEventListener("click", function(e) {
+        const modal = document.getElementById("songModal");
+        if (e.target === modal) {
+            closeSongModal();
+        }
+    });
+</script>
+
+{% endblock %}

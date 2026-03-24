@@ -1,0 +1,63 @@
+{% extends 'admin/admin_base.html' %}
+
+{% block admin_page_title %}Edit Artist{% endblock %}
+{% block admin_page_subtitle %}Update artist information and songs{% endblock %}
+
+{% block admin_content %}
+<div class="admin-panel artist-form-panel">
+    <h3>Edit Artist</h3>
+
+    <form method="POST" class="artist-admin-form" enctype="multipart/form-data">
+        <div class="form-grid-2">
+            <input type="text" name="name" value="{{ artist['name'] }}" placeholder="Artist Name" required>
+            <input type="text" name="style" value="{{ artist['style'] }}" placeholder="Style" required>
+
+            <select name="status" required>
+                <option value="Active" {% if artist['status'] == 'Active' %}selected{% endif %}>Active</option>
+                <option value="Pending" {% if artist['status'] == 'Pending' %}selected{% endif %}>Pending</option>
+                <option value="Inactive" {% if artist['status'] == 'Inactive' %}selected{% endif %}>Inactive</option>
+            </select>
+
+            <input type="file" name="image" accept=".png,.jpg,.jpeg,.webp">
+
+            <input type="text" name="facebook" value="{{ artist['facebook'] or '' }}" placeholder="Facebook Handle or Link">
+            <input type="text" name="instagram" value="{{ artist['instagram'] or '' }}" placeholder="Instagram Handle or Link">
+            <input type="text" name="tiktok" value="{{ artist['tiktok'] or '' }}" placeholder="TikTok Handle or Link">
+            <input type="text" name="youtube_channel" value="{{ artist['youtube_channel'] or '' }}" placeholder="YouTube Channel Link">
+            <input type="text" name="spotify_channel" value="{{ artist['spotify_channel'] or '' }}" placeholder="Spotify Channel Link">
+        </div>
+
+        {% if artist['image'] %}
+        <div style="margin: 18px 0 10px;">
+            <p style="margin-bottom: 10px; color: #fff;">Current Image</p>
+            <img src="{{ url_for('static', filename='uploads/artists/' ~ artist['image']) }}"
+                 alt="{{ artist['name'] }}"
+                 class="artist-thumb"
+                 style="width: 90px; height: 90px; border-radius: 16px;">
+        </div>
+        {% endif %}
+
+        <textarea name="history" rows="5" placeholder="Short artist history...">{{ artist['history'] or '' }}</textarea>
+
+        <h4>Top 5 Songs</h4>
+
+        <div class="songs-entry-wrap">
+            {% for i in range(5) %}
+            <div class="song-row">
+                <input type="text" name="song_title_{{ i + 1 }}" placeholder="Song Title"
+                       value="{{ songs[i]['title'] if i < songs|length else '' }}">
+                <input type="number" name="youtube_views_{{ i + 1 }}" placeholder="YouTube Views" min="0"
+                       value="{{ songs[i]['youtube_views'] if i < songs|length else 0 }}">
+                <input type="number" name="spotify_streams_{{ i + 1 }}" placeholder="Spotify Streams" min="0"
+                       value="{{ songs[i]['spotify_streams'] if i < songs|length else 0 }}">
+            </div>
+            {% endfor %}
+        </div>
+
+        <div class="modal-action-row">
+            <a href="{{ url_for('manage_artists') }}" class="secondary-admin-btn">Back</a>
+            <button type="submit" class="primary-admin-btn">Update Artist</button>
+        </div>
+    </form>
+</div>
+{% endblock %}

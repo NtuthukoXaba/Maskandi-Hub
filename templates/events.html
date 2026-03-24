@@ -1,0 +1,46 @@
+{% extends 'base.html' %}
+
+{% block title %}Upcoming Events{% endblock %}
+
+{% block content %}
+<section class="inner-hero">
+    <span class="tag">LIVE PERFORMANCES</span>
+    <h1>Upcoming Events</h1>
+    <p>Stay updated with Maskandi festivals, concerts, and community events.</p>
+</section>
+
+<section class="section-block events-page-section">
+    <div class="content-grid two-grid events-grid-pro">
+        {% if public_events %}
+            {% for event in public_events %}
+            <div class="event-card event-card-pro">
+                <div class="event-glow"></div>
+
+                {% if event.image %}
+                <div class="event-image-wrap event-image-wrap-pro">
+                    <img src="{{ url_for('static', filename='uploads/events/' ~ event.image) }}" alt="{{ event.name }}" class="event-image event-image-pro">
+                </div>
+                {% endif %}
+
+                <div class="event-card-body">
+                    <h3>{{ event.name }}</h3>
+
+                    <div class="event-meta-list">
+                        <p><strong>Date:</strong> {{ event.event_datetime[:10] }}</p>
+                        <p><strong>Time:</strong> {{ event.event_datetime[11:16] }}</p>
+                        <p><strong>Venue:</strong> {{ event.venue }}</p>
+                    </div>
+
+                    <a href="{{ url_for('event_details', event_id=event.id) }}" class="card-link event-link-btn">View Details</a>
+                </div>
+            </div>
+            {% endfor %}
+        {% else %}
+            <div class="empty-state events-empty-state">
+                <h3>No upcoming events available</h3>
+                <p>Please check back later for new Maskandi events.</p>
+            </div>
+        {% endif %}
+    </div>
+</section>
+{% endblock %}

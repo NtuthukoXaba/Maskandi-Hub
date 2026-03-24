@@ -1,0 +1,139 @@
+{% extends 'admin/admin_base.html' %}
+
+{% block admin_page_title %}Manage Events{% endblock %}
+{% block admin_page_subtitle %}Create and manage Maskandi events{% endblock %}
+
+{% block admin_content %}
+
+<div class="admin-toolbar stacked-toolbar">
+    <div class="toolbar-top-row">
+        <button type="button" class="primary-admin-btn" onclick="openEventModal()">+ Add Event</button>
+
+        <form method="GET" action="{{ url_for('manage_events') }}" class="artist-filter-form">
+            <input type="text" name="search" placeholder="Search event name or venue..." value="{{ search }}">
+
+            <select name="status">
+                <option value="">All Status</option>
+                <option value="Published" {% if status_filter == 'Published' %}selected{% endif %}>Published</option>
+                <option value="Draft" {% if status_filter == 'Draft' %}selected{% endif %}>Draft</option>
+            </select>
+
+            <button type="submit" class="primary-admin-btn">Apply</button>
+        </form>
+    </div>
+</div>
+
+<!-- ADD EVENT MODAL -->
+<div id="eventModal" class="artist-modal-overlay">
+    <div class="artist-modal-box">
+        <div class="artist-modal-header">
+            <h3>Add Event</h3>
+            <button type="button" class="artist-modal-close" onclick="closeEventModal()">&times;</button>
+        </div>
+
+        <div class="artist-modal-body">
+            <form method="POST" action="{{ url_for('add_event') }}" class="artist-admin-form" enctype="multipart/form-data">
+                <div class="form-grid-2">
+                    <input type="text" name="name" placeholder="Event Name" required>
+                    <input type="datetime-local" name="event_datetime" required>
+
+                    <input type="text" name="venue" placeholder="Venue" required>
+                    <input type="text" name="ticket_link" placeholder="Ticket Link (optional)">
+
+                    <select name="status" required>
+                        <option value="Published">Published</option>
+                        <option value="Draft">Draft</option>
+                    </select>
+
+                    <input type="file" name="image" accept=".png,.jpg,.jpeg,.webp">
+                </div>
+
+                <div class="modal-action-row">
+                    <button type="button" class="secondary-admin-btn" onclick="closeEventModal()">Cancel</button>
+                    <button type="submit" class="primary-admin-btn">Save Event</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<div class="artists-list-scroll-area">
+    <div class="compact-artists-list">
+        {% if events_list %}
+            {% for event in events_list %}
+            <div class="artist-list-item compact-item">
+                {% if event['image'] %}
+                    <img src="{{ url_for('static', filename='uploads/events/' ~ event['image']) }}"
+                         alt="{{ event['name'] }}"
+                         class="artist-thumb">
+                {% else %}
+                    <div class="artist-thumb artist-thumb-placeholder">No Image</div>
+                {% endif %}
+
+                <div class="artist-list-main compact-main">
+                    <div class="artist-list-top compact-top">
+                        <div class="artist-list-heading compact-heading">
+                            <h3>{{ event['name'] }}</h3>
+                            <p class="artist-style">{{ event['venue'] }}</p>
+                            <p class="artist-style">{{ event['event_datetime'] }}</p>
+
+                            {% if event['ticket_link'] %}
+                                <p class="artist-style">
+                                    <a href="{{ event['ticket_link'] }}" target="_blank" class="ticket-link-btn">Buy Tickets</a>
+                                </p>
+                            {% endif %}
+                        </div>
+
+                        <span class="table-badge {% if event['status'] == 'Published' %}active{% else %}pending{% endif %}">
+                            {{ event['status'] }}
+                        </span>
+                    </div>
+
+                    <div class="artist-card-actions compact-actions">
+                        <a href="{{ url_for('edit_event', event_id=event['id']) }}" class="table-btn">Edit</a>
+
+                        <form method="POST" action="{{ url_for('delete_event', event_id=event['id']) }}" onsubmit="return confirm('Delete this event?');">
+                            <button type="submit" class="table-btn danger">Delete</button>
+                        </form>
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        {% else %}
+            <div class="admin-panel">
+                <p style="text-align:center;">No events found.</p>
+            </div>
+        {% endif %}
+    </div>
+</div>
+
+{% with messages = get_flashed_messages() %}
+    {% if messages %}
+        <div class="flash-wrap">
+            {% for message in messages %}
+                <div class="admin-flash-message">{{ message }}</div>
+            {% endfor %}
+        </div>
+    {% endif %}
+{% endwith %}
+
+<script>
+    function openEventModal() {
+        document.getElementById("eventModal").classList.add("show");
+        document.body.classList.add("modal-open");
+    }
+
+    function closeEventModal() {
+        document.getElementById("eventModal").classList.remove("show");
+        document.body.classList.remove("modal-open");
+    }
+
+    window.addEventListener("click", function(e) {
+        const modal = document.getElementById("eventModal");
+        if (e.target === modal) {
+            closeEventModal();
+        }
+    });
+</script>
+
+{% endblock %}
