@@ -8,16 +8,25 @@ from flask import Flask, render_template, request, redirect, url_for, flash, ses
 from werkzeug.security import generate_password_hash, check_password_hash
 from werkzeug.utils import secure_filename
 
-import psycopg2
-from psycopg2.extras import RealDictCursor
-
+# Load environment variables
 load_dotenv()
+
+# For Render deployment - use /tmp for SQLite database
+import sys
+if os.environ.get('RENDER'):
+    DATABASE_URL = "sqlite:////tmp/maskandi_hub.db"
+    print("Running on Render - using /tmp for SQLite database", file=sys.stderr)
+else:
+    DATABASE_URL = "sqlite:///maskandi_hub.db"
 
 app = Flask(__name__)
 app.secret_key = os.environ.get("SECRET_KEY", "change-me-in-production")
 app.config["DEBUG"] = os.environ.get("DEBUG", "False").lower() == "true"
 
-DATABASE_URL = os.environ.get("DATABASE_URL")
+# Rest of your code continues here...
+
+# Use SQLite database
+DATABASE_URL = "sqlite:///maskandi_hub.db"
 
 ARTIST_UPLOAD_FOLDER = "static/uploads/artists"
 SONG_UPLOAD_FOLDER = "static/uploads/songs"
@@ -44,50 +53,68 @@ def allowed_file(filename):
 
 
 def get_db_connection():
-    if not DATABASE_URL:
-        raise RuntimeError("DATABASE_URL is not set. Add it to your environment or .env file.")
-    return psycopg2.connect(DATABASE_URL, cursor_factory=RealDictCursor)
+    import sqlite3
+    db_path = DATABASE_URL.replace("sqlite:///", "")
+    conn = sqlite3.connect(db_path)
+    conn.row_factory = sqlite3.Row
+    return conn
 
 
 def fetchone(query, params=None):
     conn = get_db_connection()
     try:
-        with conn.cursor() as cur:
-            cur.execute(query, params or ())
-            return cur.fetchone()
+        cur = conn.cursor()
+        if params:
+            cur.execute(query, params)
+        else:
+            cur.execute(query)
+        return cur.fetchone()
     finally:
+        cur.close()
         conn.close()
 
 
 def fetchall(query, params=None):
     conn = get_db_connection()
     try:
-        with conn.cursor() as cur:
-            cur.execute(query, params or ())
-            return cur.fetchall()
+        cur = conn.cursor()
+        if params:
+            cur.execute(query, params)
+        else:
+            cur.execute(query)
+        return cur.fetchall()
     finally:
+        cur.close()
         conn.close()
 
 
 def execute_commit(query, params=None):
     conn = get_db_connection()
     try:
-        with conn.cursor() as cur:
-            cur.execute(query, params or ())
+        cur = conn.cursor()
+        if params:
+            cur.execute(query, params)
+        else:
+            cur.execute(query)
         conn.commit()
     finally:
+        cur.close()
         conn.close()
 
 
 def execute_returning_one(query, params=None):
     conn = get_db_connection()
     try:
-        with conn.cursor() as cur:
-            cur.execute(query, params or ())
-            row = cur.fetchone()
+        cur = conn.cursor()
+        if params:
+            cur.execute(query, params)
+        else:
+            cur.execute(query)
+        row = cur.fetchone()
         conn.commit()
         return row
     finally:
+        cur.close()
         conn.close()
 
 
@@ -96,12 +123,18 @@ def get_event_live_status(event):
     start_dt = None
     end_dt = None
 
-    if event.get("start_datetime"):
-        start_dt = datetime.strptime(event["start_datetime"], "%Y-%m-%dT%H:%M")
-    if event.get("end_datetime"):
-        end_dt = datetime.strptime(event["end_datetime"], "%Y-%m-%dT%H:%M")
+    if event["start_datetime"]:
+        try:
+            start_dt = datetime.strptime(event["start_datetime"], "%Y-%m-%dT%H:%M")
+        except:
+            pass
+    if event["end_datetime"]:
+        try:
+            end_dt = datetime.strptime(event["end_datetime"], "%Y-%m-%dT%H:%M")
+        except:
+            pass
 
-    manual_status = event.get("status")
+    manual_status = event["status"]
 
     if manual_status == "Closed":
         return "Closed"
@@ -127,7 +160,7 @@ def has_device_voted(event_id, device_token):
         """
         SELECT id
         FROM vote_device_logs
-        WHERE event_id = %s AND device_token = %s
+        WHERE event_id = ? AND device_token = ?
         LIMIT 1
         """,
         (event_id, device_token),
@@ -138,177 +171,222 @@ def has_device_voted(event_id, device_token):
 def get_public_vote_events():
     conn = get_db_connection()
     try:
-        with conn.cursor() as cur:
-            cur.execute(
-                """
-                SELECT *
-                FROM vote_events
-                ORDER BY created_at DESC, id DESC
-                LIMIT 2
-                """
-            )
-            events = cur.fetchall()
+        cur = conn.cursor()
+        cur.execute(
+            """
+            SELECT *
+            FROM vote_events
+            ORDER BY created_at DESC, id DESC
+            LIMIT 2
+            """
+        )
+        events = cur.fetchall()
 
-            public_vote_events = []
+        public_vote_events = []
 
-            for event in events:
-                live_status = get_event_live_status(event)
+        for event in events:
+            live_status = get_event_live_status(event)
 
-                if live_status in ["Open", "Upcoming"]:
-                    cur.execute(
-                        """
-                        SELECT *
-                        FROM vote_candidates
-                        WHERE event_id = %s
-                        ORDER BY votes_count DESC, candidate_name ASC
-                        LIMIT 4
-                        """,
-                        (event["id"],),
-                    )
-                    candidates = cur.fetchall()
+            if live_status in ["Open", "Upcoming"]:
+                cur.execute(
+                    """
+                    SELECT *
+                    FROM vote_candidates
+                    WHERE event_id = ?
+                    ORDER BY votes_count DESC, candidate_name ASC
+                    LIMIT 4
+                    """,
+                    (event["id"],),
+                )
+                candidates = cur.fetchall()
 
-                    public_vote_events.append({
-                        "event": event,
-                        "live_status": live_status,
-                        "candidates": candidates
-                    })
+                public_vote_events.append({
+                    "event": event,
+                    "live_status": live_status,
+                    "candidates": candidates
+                })
 
-            return public_vote_events
+        return public_vote_events
     finally:
+        cur.close()
         conn.close()
 
 
 def init_db():
+    import sqlite3
+    db_path = DATABASE_URL.replace("sqlite:///", "")
+    
+    # Ensure directory exists for SQLite file
+    db_dir = os.path.dirname(db_path)
+    if db_dir and not os.path.exists(db_dir):
+        os.makedirs(db_dir, exist_ok=True)
+    
     conn = get_db_connection()
     try:
-        with conn.cursor() as cursor:
-            cursor.execute("""
-                CREATE TABLE IF NOT EXISTS admins (
-                    id SERIAL PRIMARY KEY,
-                    email TEXT UNIQUE NOT NULL,
-                    password TEXT NOT NULL
-                )
-            """)
+        cursor = conn.cursor()
+        
+        # Create all tables (same as before)
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS admins (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                email TEXT UNIQUE NOT NULL,
+                password TEXT NOT NULL
+            )
+        """)
 
-            cursor.execute("""
-                CREATE TABLE IF NOT EXISTS artists (
-                    id SERIAL PRIMARY KEY,
-                    name TEXT NOT NULL,
-                    style TEXT NOT NULL,
-                    status TEXT NOT NULL DEFAULT 'Active',
-                    history TEXT,
-                    facebook TEXT,
-                    instagram TEXT,
-                    tiktok TEXT,
-                    youtube_channel TEXT,
-                    spotify_channel TEXT,
-                    image TEXT,
-                    total_views INTEGER DEFAULT 0
-                )
-            """)
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS artists (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                name TEXT NOT NULL,
+                style TEXT NOT NULL,
+                status TEXT NOT NULL DEFAULT 'Active',
+                history TEXT,
+                facebook TEXT,
+                instagram TEXT,
+                tiktok TEXT,
+                youtube_channel TEXT,
+                spotify_channel TEXT,
+                image TEXT,
+                total_views INTEGER DEFAULT 0
+            )
+        """)
 
-            cursor.execute("""
-                CREATE TABLE IF NOT EXISTS songs (
-                    id SERIAL PRIMARY KEY,
-                    artist_id INTEGER NOT NULL REFERENCES artists(id) ON DELETE CASCADE,
-                    title TEXT NOT NULL,
-                    youtube_views INTEGER DEFAULT 0,
-                    spotify_streams INTEGER DEFAULT 0
-                )
-            """)
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS songs (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                artist_id INTEGER NOT NULL,
+                title TEXT NOT NULL,
+                youtube_views INTEGER DEFAULT 0,
+                spotify_streams INTEGER DEFAULT 0,
+                FOREIGN KEY (artist_id) REFERENCES artists (id) ON DELETE CASCADE
+            )
+        """)
 
-            cursor.execute("""
-                CREATE TABLE IF NOT EXISTS chart_songs (
-                    id SERIAL PRIMARY KEY,
-                    artist_name TEXT NOT NULL,
-                    song_title TEXT NOT NULL,
-                    rank_number INTEGER NOT NULL,
-                    status TEXT NOT NULL DEFAULT 'Published',
-                    image TEXT
-                )
-            """)
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS chart_songs (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                artist_name TEXT NOT NULL,
+                song_title TEXT NOT NULL,
+                rank_number INTEGER NOT NULL,
+                status TEXT NOT NULL DEFAULT 'Published',
+                image TEXT
+            )
+        """)
 
-            cursor.execute("""
-                CREATE TABLE IF NOT EXISTS vote_events (
-                    id SERIAL PRIMARY KEY,
-                    title TEXT NOT NULL,
-                    category_type TEXT NOT NULL,
-                    status TEXT NOT NULL DEFAULT 'Open',
-                    vote_rule TEXT NOT NULL DEFAULT 'one_per_device',
-                    start_datetime TEXT,
-                    end_datetime TEXT,
-                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-                )
-            """)
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS vote_events (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                title TEXT NOT NULL,
+                category_type TEXT NOT NULL,
+                status TEXT NOT NULL DEFAULT 'Open',
+                vote_rule TEXT NOT NULL DEFAULT 'one_per_device',
+                start_datetime TEXT,
+                end_datetime TEXT,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
 
-            cursor.execute("""
-                CREATE TABLE IF NOT EXISTS vote_candidates (
-                    id SERIAL PRIMARY KEY,
-                    event_id INTEGER NOT NULL REFERENCES vote_events(id) ON DELETE CASCADE,
-                    candidate_name TEXT NOT NULL,
-                    image TEXT,
-                    votes_count INTEGER DEFAULT 0
-                )
-            """)
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS vote_candidates (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                event_id INTEGER NOT NULL,
+                candidate_name TEXT NOT NULL,
+                image TEXT,
+                votes_count INTEGER DEFAULT 0,
+                FOREIGN KEY (event_id) REFERENCES vote_events (id) ON DELETE CASCADE
+            )
+        """)
 
-            cursor.execute("""
-                CREATE TABLE IF NOT EXISTS vote_device_logs (
-                    id SERIAL PRIMARY KEY,
-                    event_id INTEGER NOT NULL REFERENCES vote_events(id) ON DELETE CASCADE,
-                    candidate_id INTEGER NOT NULL REFERENCES vote_candidates(id) ON DELETE CASCADE,
-                    device_token TEXT NOT NULL,
-                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-                )
-            """)
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS vote_device_logs (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                event_id INTEGER NOT NULL,
+                candidate_id INTEGER NOT NULL,
+                device_token TEXT NOT NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (event_id) REFERENCES vote_events (id) ON DELETE CASCADE,
+                FOREIGN KEY (candidate_id) REFERENCES vote_candidates (id) ON DELETE CASCADE
+            )
+        """)
 
-            cursor.execute("""
-                CREATE TABLE IF NOT EXISTS events_list (
-                    id SERIAL PRIMARY KEY,
-                    name TEXT NOT NULL,
-                    event_datetime TEXT NOT NULL,
-                    venue TEXT NOT NULL,
-                    ticket_link TEXT,
-                    image TEXT,
-                    status TEXT NOT NULL DEFAULT 'Published',
-                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-                )
-            """)
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS events_list (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                name TEXT NOT NULL,
+                event_datetime TEXT NOT NULL,
+                venue TEXT NOT NULL,
+                ticket_link TEXT,
+                image TEXT,
+                status TEXT NOT NULL DEFAULT 'Published',
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
 
-            cursor.execute("""
-                CREATE TABLE IF NOT EXISTS news (
-                    id SERIAL PRIMARY KEY,
-                    title TEXT NOT NULL,
-                    category TEXT NOT NULL,
-                    content TEXT NOT NULL,
-                    image TEXT,
-                    status TEXT NOT NULL DEFAULT 'Draft',
-                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-                )
-            """)
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS news (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                title TEXT NOT NULL,
+                category TEXT NOT NULL,
+                content TEXT NOT NULL,
+                image TEXT,
+                status TEXT NOT NULL DEFAULT 'Draft',
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
 
-            cursor.execute("ALTER TABLE artists ADD COLUMN IF NOT EXISTS image TEXT")
-            cursor.execute("ALTER TABLE vote_events ADD COLUMN IF NOT EXISTS start_datetime TEXT")
-            cursor.execute("ALTER TABLE vote_events ADD COLUMN IF NOT EXISTS end_datetime TEXT")
-            cursor.execute("ALTER TABLE vote_events ADD COLUMN IF NOT EXISTS vote_rule TEXT NOT NULL DEFAULT 'one_per_device'")
-            cursor.execute("ALTER TABLE news ADD COLUMN IF NOT EXISTS image TEXT")
-            cursor.execute("ALTER TABLE news ADD COLUMN IF NOT EXISTS status TEXT NOT NULL DEFAULT 'Draft'")
-            cursor.execute("ALTER TABLE news ADD COLUMN IF NOT EXISTS created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP")
+        # Add missing columns if they don't exist (for SQLite)
+        try:
+            cursor.execute("ALTER TABLE artists ADD COLUMN image TEXT")
+        except:
+            pass
+        
+        try:
+            cursor.execute("ALTER TABLE vote_events ADD COLUMN start_datetime TEXT")
+        except:
+            pass
+        
+        try:
+            cursor.execute("ALTER TABLE vote_events ADD COLUMN end_datetime TEXT")
+        except:
+            pass
+        
+        try:
+            cursor.execute("ALTER TABLE vote_events ADD COLUMN vote_rule TEXT NOT NULL DEFAULT 'one_per_device'")
+        except:
+            pass
+        
+        try:
+            cursor.execute("ALTER TABLE news ADD COLUMN image TEXT")
+        except:
+            pass
+        
+        try:
+            cursor.execute("ALTER TABLE news ADD COLUMN status TEXT NOT NULL DEFAULT 'Draft'")
+        except:
+            pass
+        
+        try:
+            cursor.execute("ALTER TABLE news ADD COLUMN created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP")
+        except:
+            pass
 
-            admin_email = "admin@maskandihub.com"
-            admin_password = "admin123"
-            hashed_password = generate_password_hash(admin_password)
+        # Create default admin user
+        admin_email = "admin@maskandihub.com"
+        admin_password = "admin123"
+        hashed_password = generate_password_hash(admin_password)
 
-            cursor.execute("SELECT * FROM admins WHERE email = %s", (admin_email,))
-            existing_admin = cursor.fetchone()
+        cursor.execute("SELECT * FROM admins WHERE email = ?", (admin_email,))
+        existing_admin = cursor.fetchone()
 
-            if not existing_admin:
-                cursor.execute(
-                    "INSERT INTO admins (email, password) VALUES (%s, %s)",
-                    (admin_email, hashed_password)
-                )
+        if not existing_admin:
+            cursor.execute(
+                "INSERT INTO admins (email, password) VALUES (?, ?)",
+                (admin_email, hashed_password)
+            )
 
         conn.commit()
     finally:
+        cursor.close()
         conn.close()
 
 
@@ -323,53 +401,54 @@ def admin_required():
 def home():
     conn = get_db_connection()
     try:
-        with conn.cursor() as cur:
-            cur.execute("""
-                SELECT *
-                FROM artists
-                WHERE status = 'Active'
-                ORDER BY total_views DESC, id DESC
-                LIMIT 3
-            """)
-            featured_artists = cur.fetchall()
+        cur = conn.cursor()
+        cur.execute("""
+            SELECT *
+            FROM artists
+            WHERE status = 'Active'
+            ORDER BY total_views DESC, id DESC
+            LIMIT 3
+        """)
+        featured_artists = cur.fetchall()
 
-            cur.execute("""
-                SELECT *
-                FROM chart_songs
-                WHERE status = 'Published'
-                ORDER BY rank_number ASC
-                LIMIT 5
-            """)
-            top_chart_songs = cur.fetchall()
+        cur.execute("""
+            SELECT *
+            FROM chart_songs
+            WHERE status = 'Published'
+            ORDER BY rank_number ASC
+            LIMIT 5
+        """)
+        top_chart_songs = cur.fetchall()
 
-            cur.execute("""
-                SELECT *
-                FROM events_list
-                WHERE status = 'Published'
-                  AND TO_TIMESTAMP(event_datetime, 'YYYY-MM-DD"T"HH24:MI') >= CURRENT_TIMESTAMP
-                ORDER BY TO_TIMESTAMP(event_datetime, 'YYYY-MM-DD"T"HH24:MI') ASC
-                LIMIT 3
-            """)
-            upcoming_events = cur.fetchall()
+        cur.execute("""
+            SELECT *
+            FROM events_list
+            WHERE status = 'Published'
+              AND datetime(event_datetime) >= datetime('now')
+            ORDER BY datetime(event_datetime) ASC
+            LIMIT 3
+        """)
+        upcoming_events = cur.fetchall()
 
-            cur.execute("""
-                SELECT *
-                FROM news
-                WHERE status = 'Published'
-                ORDER BY created_at DESC, id DESC
-                LIMIT 3
-            """)
-            latest_news = cur.fetchall()
+        cur.execute("""
+            SELECT *
+            FROM news
+            WHERE status = 'Published'
+            ORDER BY created_at DESC, id DESC
+            LIMIT 3
+        """)
+        latest_news = cur.fetchall()
 
-            cur.execute("SELECT COUNT(*) AS total FROM artists")
-            total_artists_row = cur.fetchone()
+        cur.execute("SELECT COUNT(*) AS total FROM artists")
+        total_artists_row = cur.fetchone()
 
-            cur.execute("SELECT COUNT(*) AS total FROM chart_songs")
-            total_songs_row = cur.fetchone()
+        cur.execute("SELECT COUNT(*) AS total FROM chart_songs")
+        total_songs_row = cur.fetchone()
 
-            cur.execute("SELECT COALESCE(SUM(votes_count), 0) AS total FROM vote_candidates")
-            total_votes_row = cur.fetchone()
+        cur.execute("SELECT COALESCE(SUM(votes_count), 0) AS total FROM vote_candidates")
+        total_votes_row = cur.fetchone()
     finally:
+        cur.close()
         conn.close()
 
     public_vote_events = get_public_vote_events()
@@ -400,34 +479,35 @@ def artists():
 
     conn = get_db_connection()
     try:
-        with conn.cursor() as cur:
-            count_query = """
-                SELECT COUNT(*) AS total
-                FROM artists
-                WHERE status = 'Active'
-            """
-            data_query = """
-                SELECT *
-                FROM artists
-                WHERE status = 'Active'
-            """
-            params = []
+        cur = conn.cursor()
+        count_query = """
+            SELECT COUNT(*) AS total
+            FROM artists
+            WHERE status = 'Active'
+        """
+        data_query = """
+            SELECT *
+            FROM artists
+            WHERE status = 'Active'
+        """
+        params = []
 
-            if search:
-                count_query += " AND (name ILIKE %s OR style ILIKE %s OR history ILIKE %s)"
-                data_query += " AND (name ILIKE %s OR style ILIKE %s OR history ILIKE %s)"
-                like_value = f"%{search}%"
-                params.extend([like_value, like_value, like_value])
+        if search:
+            count_query += " AND (name LIKE ? OR style LIKE ? OR history LIKE ?)"
+            data_query += " AND (name LIKE ? OR style LIKE ? OR history LIKE ?)"
+            like_value = f"%{search}%"
+            params.extend([like_value, like_value, like_value])
 
-            data_query += " ORDER BY total_views DESC, name ASC LIMIT %s OFFSET %s"
+        data_query += " ORDER BY total_views DESC, name ASC LIMIT ? OFFSET ?"
 
-            cur.execute(count_query, params)
-            total_row = cur.fetchone()
-            total_artists = total_row["total"] if total_row else 0
+        cur.execute(count_query, params)
+        total_row = cur.fetchone()
+        total_artists = total_row["total"] if total_row else 0
 
-            cur.execute(data_query, params + [per_page, offset])
-            artists_list = cur.fetchall()
+        cur.execute(data_query, params + [per_page, offset])
+        artists_list = cur.fetchall()
     finally:
+        cur.close()
         conn.close()
 
     total_pages = math.ceil(total_artists / per_page) if total_artists > 0 else 1
@@ -463,54 +543,55 @@ def vote():
 
     conn = get_db_connection()
     try:
-        with conn.cursor() as cur:
+        cur = conn.cursor()
+        cur.execute("""
+            SELECT *
+            FROM vote_events
+            ORDER BY
+                CASE
+                    WHEN status = 'Closed' THEN 3
+                    ELSE 0
+                END,
+                start_datetime ASC,
+                created_at DESC
+        """)
+        events = cur.fetchall()
+
+        vote_events_data = []
+
+        for event in events:
+            live_status = get_event_live_status(event)
+
+            if live_status not in ["Open", "Upcoming"]:
+                continue
+
             cur.execute("""
                 SELECT *
-                FROM vote_events
-                ORDER BY
-                    CASE
-                        WHEN status = 'Closed' THEN 3
-                        ELSE 0
-                    END,
-                    start_datetime ASC,
-                    created_at DESC
-            """)
-            events = cur.fetchall()
+                FROM vote_candidates
+                WHERE event_id = ?
+                ORDER BY votes_count DESC, candidate_name ASC
+            """, (event["id"],))
+            candidates = cur.fetchall()
 
-            vote_events_data = []
+            cur.execute("""
+                SELECT COALESCE(SUM(votes_count), 0) AS total_votes
+                FROM vote_candidates
+                WHERE event_id = ?
+            """, (event["id"],))
+            total_votes_row = cur.fetchone()
 
-            for event in events:
-                live_status = get_event_live_status(event)
+            total_votes = total_votes_row["total_votes"] if total_votes_row else 0
+            voted_already = has_device_voted(event["id"], device_token)
 
-                if live_status not in ["Open", "Upcoming"]:
-                    continue
-
-                cur.execute("""
-                    SELECT *
-                    FROM vote_candidates
-                    WHERE event_id = %s
-                    ORDER BY votes_count DESC, candidate_name ASC
-                """, (event["id"],))
-                candidates = cur.fetchall()
-
-                cur.execute("""
-                    SELECT COALESCE(SUM(votes_count), 0) AS total_votes
-                    FROM vote_candidates
-                    WHERE event_id = %s
-                """, (event["id"],))
-                total_votes_row = cur.fetchone()
-
-                total_votes = total_votes_row["total_votes"] if total_votes_row else 0
-                voted_already = has_device_voted(event["id"], device_token)
-
-                vote_events_data.append({
-                    "event": event,
-                    "live_status": live_status,
-                    "candidates": candidates,
-                    "total_votes": total_votes,
-                    "voted_already": voted_already
-                })
+            vote_events_data.append({
+                "event": event,
+                "live_status": live_status,
+                "candidates": candidates,
+                "total_votes": total_votes,
+                "voted_already": voted_already
+            })
     finally:
+        cur.close()
         conn.close()
 
     response = make_response(render_template("vote.html", vote_events=vote_events_data))
@@ -530,74 +611,75 @@ def submit_vote(event_id, candidate_id):
 
     conn = get_db_connection()
     try:
-        with conn.cursor() as cur:
-            cur.execute("""
-                SELECT *
-                FROM vote_events
-                WHERE id = %s
-            """, (event_id,))
-            event = cur.fetchone()
+        cur = conn.cursor()
+        cur.execute("""
+            SELECT *
+            FROM vote_events
+            WHERE id = ?
+        """, (event_id,))
+        event = cur.fetchone()
 
-            if not event:
-                flash("Voting event not found.")
-                response = make_response(redirect(url_for("vote")))
-                response.set_cookie("vote_device_token", device_token, max_age=60 * 60 * 24 * 365, httponly=True, samesite="Lax")
-                return response
+        if not event:
+            flash("Voting event not found.")
+            response = make_response(redirect(url_for("vote")))
+            response.set_cookie("vote_device_token", device_token, max_age=60 * 60 * 24 * 365, httponly=True, samesite="Lax")
+            return response
 
-            live_status = get_event_live_status(event)
+        live_status = get_event_live_status(event)
 
-            if live_status == "Upcoming":
-                flash("This voting event is upcoming. Voting has not opened yet.")
-                response = make_response(redirect(url_for("vote")))
-                response.set_cookie("vote_device_token", device_token, max_age=60 * 60 * 24 * 365, httponly=True, samesite="Lax")
-                return response
+        if live_status == "Upcoming":
+            flash("This voting event is upcoming. Voting has not opened yet.")
+            response = make_response(redirect(url_for("vote")))
+            response.set_cookie("vote_device_token", device_token, max_age=60 * 60 * 24 * 365, httponly=True, samesite="Lax")
+            return response
 
-            if live_status != "Open":
-                flash("This voting event is not open for voting.")
-                response = make_response(redirect(url_for("vote")))
-                response.set_cookie("vote_device_token", device_token, max_age=60 * 60 * 24 * 365, httponly=True, samesite="Lax")
-                return response
+        if live_status != "Open":
+            flash("This voting event is not open for voting.")
+            response = make_response(redirect(url_for("vote")))
+            response.set_cookie("vote_device_token", device_token, max_age=60 * 60 * 24 * 365, httponly=True, samesite="Lax")
+            return response
 
-            cur.execute("""
-                SELECT id
-                FROM vote_device_logs
-                WHERE event_id = %s AND device_token = %s
-                LIMIT 1
-            """, (event_id, device_token))
-            existing_vote = cur.fetchone()
+        cur.execute("""
+            SELECT id
+            FROM vote_device_logs
+            WHERE event_id = ? AND device_token = ?
+            LIMIT 1
+        """, (event_id, device_token))
+        existing_vote = cur.fetchone()
 
-            if existing_vote:
-                flash("You have already voted on this device for this category.")
-                response = make_response(redirect(url_for("vote")))
-                response.set_cookie("vote_device_token", device_token, max_age=60 * 60 * 24 * 365, httponly=True, samesite="Lax")
-                return response
+        if existing_vote:
+            flash("You have already voted on this device for this category.")
+            response = make_response(redirect(url_for("vote")))
+            response.set_cookie("vote_device_token", device_token, max_age=60 * 60 * 24 * 365, httponly=True, samesite="Lax")
+            return response
 
-            cur.execute("""
-                SELECT *
-                FROM vote_candidates
-                WHERE id = %s AND event_id = %s
-            """, (candidate_id, event_id))
-            candidate = cur.fetchone()
+        cur.execute("""
+            SELECT *
+            FROM vote_candidates
+            WHERE id = ? AND event_id = ?
+        """, (candidate_id, event_id))
+        candidate = cur.fetchone()
 
-            if not candidate:
-                flash("Vote option not found.")
-                response = make_response(redirect(url_for("vote")))
-                response.set_cookie("vote_device_token", device_token, max_age=60 * 60 * 24 * 365, httponly=True, samesite="Lax")
-                return response
+        if not candidate:
+            flash("Vote option not found.")
+            response = make_response(redirect(url_for("vote")))
+            response.set_cookie("vote_device_token", device_token, max_age=60 * 60 * 24 * 365, httponly=True, samesite="Lax")
+            return response
 
-            cur.execute("""
-                UPDATE vote_candidates
-                SET votes_count = votes_count + 1
-                WHERE id = %s
-            """, (candidate_id,))
+        cur.execute("""
+            UPDATE vote_candidates
+            SET votes_count = votes_count + 1
+            WHERE id = ?
+        """, (candidate_id,))
 
-            cur.execute("""
-                INSERT INTO vote_device_logs (event_id, candidate_id, device_token)
-                VALUES (%s, %s, %s)
-            """, (event_id, candidate_id, device_token))
+        cur.execute("""
+            INSERT INTO vote_device_logs (event_id, candidate_id, device_token)
+            VALUES (?, ?, ?)
+        """, (event_id, candidate_id, device_token))
 
         conn.commit()
     finally:
+        cur.close()
         conn.close()
 
     flash("Your vote has been recorded successfully.")
@@ -618,8 +700,8 @@ def events():
         SELECT *
         FROM events_list
         WHERE status = 'Published'
-          AND TO_TIMESTAMP(event_datetime, 'YYYY-MM-DD"T"HH24:MI') >= CURRENT_TIMESTAMP
-        ORDER BY TO_TIMESTAMP(event_datetime, 'YYYY-MM-DD"T"HH24:MI') ASC
+          AND datetime(event_datetime) >= datetime('now')
+        ORDER BY datetime(event_datetime) ASC
     """)
     return render_template("events.html", public_events=public_events)
 
@@ -628,27 +710,28 @@ def events():
 def event_details(event_id):
     conn = get_db_connection()
     try:
-        with conn.cursor() as cur:
-            cur.execute("""
-                SELECT *
-                FROM events_list
-                WHERE id = %s
-                  AND status = 'Published'
-                  AND TO_TIMESTAMP(event_datetime, 'YYYY-MM-DD"T"HH24:MI') >= CURRENT_TIMESTAMP
-            """, (event_id,))
-            event = cur.fetchone()
+        cur = conn.cursor()
+        cur.execute("""
+            SELECT *
+            FROM events_list
+            WHERE id = ?
+              AND status = 'Published'
+              AND datetime(event_datetime) >= datetime('now')
+        """, (event_id,))
+        event = cur.fetchone()
 
-            cur.execute("""
-                SELECT *
-                FROM events_list
-                WHERE status = 'Published'
-                  AND TO_TIMESTAMP(event_datetime, 'YYYY-MM-DD"T"HH24:MI') >= CURRENT_TIMESTAMP
-                  AND id != %s
-                ORDER BY TO_TIMESTAMP(event_datetime, 'YYYY-MM-DD"T"HH24:MI') ASC
-                LIMIT 3
-            """, (event_id,))
-            upcoming_events = cur.fetchall()
+        cur.execute("""
+            SELECT *
+            FROM events_list
+            WHERE status = 'Published'
+              AND datetime(event_datetime) >= datetime('now')
+              AND id != ?
+            ORDER BY datetime(event_datetime) ASC
+            LIMIT 3
+        """, (event_id,))
+        upcoming_events = cur.fetchall()
     finally:
+        cur.close()
         conn.close()
 
     if not event:
@@ -673,25 +756,26 @@ def news():
 def news_details(news_id):
     conn = get_db_connection()
     try:
-        with conn.cursor() as cur:
-            cur.execute("""
-                SELECT *
-                FROM news
-                WHERE id = %s
-                  AND status = 'Published'
-            """, (news_id,))
-            article = cur.fetchone()
+        cur = conn.cursor()
+        cur.execute("""
+            SELECT *
+            FROM news
+            WHERE id = ?
+              AND status = 'Published'
+        """, (news_id,))
+        article = cur.fetchone()
 
-            cur.execute("""
-                SELECT *
-                FROM news
-                WHERE status = 'Published'
-                  AND id != %s
-                ORDER BY created_at DESC, id DESC
-                LIMIT 4
-            """, (news_id,))
-            latest_news = cur.fetchall()
+        cur.execute("""
+            SELECT *
+            FROM news
+            WHERE status = 'Published'
+              AND id != ?
+            ORDER BY created_at DESC, id DESC
+            LIMIT 4
+        """, (news_id,))
+        latest_news = cur.fetchall()
     finally:
+        cur.close()
         conn.close()
 
     if not article:
@@ -708,7 +792,7 @@ def login():
         password = request.form["password"]
 
         admin = fetchone(
-            "SELECT * FROM admins WHERE email = %s",
+            "SELECT * FROM admins WHERE email = ?",
             (email,)
         )
 
@@ -746,59 +830,60 @@ def admin_dashboard():
 
     conn = get_db_connection()
     try:
-        with conn.cursor() as cur:
-            cur.execute("SELECT COUNT(*) AS total FROM artists")
-            total_artists_row = cur.fetchone()
+        cur = conn.cursor()
+        cur.execute("SELECT COUNT(*) AS total FROM artists")
+        total_artists_row = cur.fetchone()
 
-            cur.execute("SELECT COUNT(*) AS total FROM chart_songs")
-            total_songs_row = cur.fetchone()
+        cur.execute("SELECT COUNT(*) AS total FROM chart_songs")
+        total_songs_row = cur.fetchone()
 
-            cur.execute("SELECT COALESCE(SUM(votes_count), 0) AS total FROM vote_candidates")
-            total_votes_row = cur.fetchone()
+        cur.execute("SELECT COALESCE(SUM(votes_count), 0) AS total FROM vote_candidates")
+        total_votes_row = cur.fetchone()
 
-            cur.execute("""
-                SELECT COUNT(*) AS total
-                FROM events_list
-                WHERE status = 'Published'
-                  AND TO_TIMESTAMP(event_datetime, 'YYYY-MM-DD"T"HH24:MI') >= CURRENT_TIMESTAMP
-            """)
-            upcoming_events_row = cur.fetchone()
+        cur.execute("""
+            SELECT COUNT(*) AS total
+            FROM events_list
+            WHERE status = 'Published'
+              AND datetime(event_datetime) >= datetime('now')
+        """)
+        upcoming_events_row = cur.fetchone()
 
-            cur.execute("SELECT COUNT(*) AS total FROM news")
-            total_news_row = cur.fetchone()
+        cur.execute("SELECT COUNT(*) AS total FROM news")
+        total_news_row = cur.fetchone()
 
-            cur.execute("""
-                SELECT id, name, style, status
-                FROM artists
-                ORDER BY id DESC
-                LIMIT 3
-            """)
-            recent_artists = cur.fetchall()
+        cur.execute("""
+            SELECT id, name, style, status
+            FROM artists
+            ORDER BY id DESC
+            LIMIT 3
+        """)
+        recent_artists = cur.fetchall()
 
-            cur.execute("""
-                SELECT id, name, venue, event_datetime, status
-                FROM events_list
-                ORDER BY created_at DESC, id DESC
-                LIMIT 3
-            """)
-            recent_events = cur.fetchall()
+        cur.execute("""
+            SELECT id, name, venue, event_datetime, status
+            FROM events_list
+            ORDER BY created_at DESC, id DESC
+            LIMIT 3
+        """)
+        recent_events = cur.fetchall()
 
-            cur.execute("""
-                SELECT id, title, category, created_at, status
-                FROM news
-                ORDER BY created_at DESC, id DESC
-                LIMIT 3
-            """)
-            recent_news = cur.fetchall()
+        cur.execute("""
+            SELECT id, title, category, created_at, status
+            FROM news
+            ORDER BY created_at DESC, id DESC
+            LIMIT 3
+        """)
+        recent_news = cur.fetchall()
 
-            cur.execute("""
-                SELECT id, title, category_type, status, start_datetime, end_datetime
-                FROM vote_events
-                ORDER BY created_at DESC, id DESC
-                LIMIT 3
-            """)
-            recent_votes = cur.fetchall()
+        cur.execute("""
+            SELECT id, title, category_type, status, start_datetime, end_datetime
+            FROM vote_events
+            ORDER BY created_at DESC, id DESC
+            LIMIT 3
+        """)
+        recent_votes = cur.fetchall()
     finally:
+        cur.close()
         conn.close()
 
     recent_updates = []
@@ -858,15 +943,15 @@ def manage_artists():
     params = []
 
     if search:
-        query += " AND (name ILIKE %s OR history ILIKE %s)"
+        query += " AND (name LIKE ? OR history LIKE ?)"
         params.extend([f"%{search}%", f"%{search}%"])
 
     if style_filter:
-        query += " AND style = %s"
+        query += " AND style = ?"
         params.append(style_filter)
 
     if status_filter:
-        query += " AND status = %s"
+        query += " AND status = ?"
         params.append(status_filter)
 
     if sort_by == "name_desc":
@@ -880,29 +965,30 @@ def manage_artists():
 
     conn = get_db_connection()
     try:
-        with conn.cursor() as cur:
-            cur.execute(query, params)
-            artists = cur.fetchall()
+        cur = conn.cursor()
+        cur.execute(query, params)
+        artists = cur.fetchall()
 
-            artist_list = []
-            for artist in artists:
-                cur.execute("""
-                    SELECT *
-                    FROM songs
-                    WHERE artist_id = %s
-                    ORDER BY youtube_views DESC, spotify_streams DESC
-                    LIMIT 5
-                """, (artist["id"],))
-                songs = cur.fetchall()
+        artist_list = []
+        for artist in artists:
+            cur.execute("""
+                SELECT *
+                FROM songs
+                WHERE artist_id = ?
+                ORDER BY youtube_views DESC, spotify_streams DESC
+                LIMIT 5
+            """, (artist["id"],))
+            songs = cur.fetchall()
 
-                artist_list.append({
-                    "artist": artist,
-                    "songs": songs
-                })
+            artist_list.append({
+                "artist": artist,
+                "songs": songs
+            })
 
-            cur.execute("SELECT DISTINCT style FROM artists ORDER BY style ASC")
-            styles = cur.fetchall()
+        cur.execute("SELECT DISTINCT style FROM artists ORDER BY style ASC")
+        styles = cur.fetchall()
     finally:
+        cur.close()
         conn.close()
 
     return render_template(
@@ -944,17 +1030,106 @@ def add_artist():
 
     conn = get_db_connection()
     try:
-        with conn.cursor() as cursor:
+        cursor = conn.cursor()
+        cursor.execute("""
+            INSERT INTO artists
+            (name, style, status, history, facebook, instagram, tiktok, youtube_channel, spotify_channel, image)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """, (
+            name, style, status, history, facebook, instagram, tiktok, youtube_channel, spotify_channel, image_name
+        ))
+
+        artist_id = cursor.lastrowid
+        total_views = 0
+
+        for i in range(1, 6):
+            song_title = request.form.get(f"song_title_{i}", "").strip()
+            youtube_views = request.form.get(f"youtube_views_{i}", "0").strip()
+            spotify_streams = request.form.get(f"spotify_streams_{i}", "0").strip()
+
+            if song_title:
+                yv = int(youtube_views) if youtube_views.isdigit() else 0
+                sp = int(spotify_streams) if spotify_streams.isdigit() else 0
+                total_views += yv + sp
+
+                cursor.execute("""
+                    INSERT INTO songs (artist_id, title, youtube_views, spotify_streams)
+                    VALUES (?, ?, ?, ?)
+                """, (artist_id, song_title, yv, sp))
+
+        cursor.execute("UPDATE artists SET total_views = ? WHERE id = ?", (total_views, artist_id))
+        conn.commit()
+    finally:
+        cursor.close()
+        conn.close()
+
+    flash("Artist added successfully")
+    return redirect(url_for("manage_artists"))
+
+
+@app.route("/admin/artists/delete/<int:artist_id>", methods=["POST"])
+def delete_artist(artist_id):
+    if not admin_required():
+        return redirect(url_for("login"))
+
+    conn = get_db_connection()
+    try:
+        cursor = conn.cursor()
+        cursor.execute("DELETE FROM songs WHERE artist_id = ?", (artist_id,))
+        cursor.execute("DELETE FROM artists WHERE id = ?", (artist_id,))
+        conn.commit()
+    finally:
+        cursor.close()
+        conn.close()
+
+    flash("Artist deleted successfully")
+    return redirect(url_for("manage_artists"))
+
+
+@app.route("/admin/artists/edit/<int:artist_id>", methods=["GET", "POST"])
+def edit_artist(artist_id):
+    if not admin_required():
+        return redirect(url_for("login"))
+
+    conn = get_db_connection()
+    try:
+        cursor = conn.cursor()
+        if request.method == "POST":
+            name = request.form["name"]
+            style = request.form["style"]
+            status = request.form["status"]
+            history = request.form["history"]
+            facebook = request.form["facebook"]
+            instagram = request.form["instagram"]
+            tiktok = request.form["tiktok"]
+            youtube_channel = request.form["youtube_channel"]
+            spotify_channel = request.form["spotify_channel"]
+
+            cursor.execute("SELECT * FROM artists WHERE id = ?", (artist_id,))
+            artist = cursor.fetchone()
+            image_name = artist["image"]
+
+            image_file = request.files.get("image")
+            if image_file and image_file.filename:
+                if allowed_file(image_file.filename):
+                    filename = secure_filename(image_file.filename)
+                    image_name = f"{name.lower().replace(' ', '_')}_{filename}"
+                    image_file.save(os.path.join(app.config["ARTIST_UPLOAD_FOLDER"], image_name))
+                else:
+                    flash("Invalid image format. Use png, jpg, jpeg, or webp.")
+                    return redirect(url_for("edit_artist", artist_id=artist_id))
+
             cursor.execute("""
-                INSERT INTO artists
-                (name, style, status, history, facebook, instagram, tiktok, youtube_channel, spotify_channel, image)
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-                RETURNING id
+                UPDATE artists
+                SET name = ?, style = ?, status = ?, history = ?, facebook = ?, instagram = ?,
+                    tiktok = ?, youtube_channel = ?, spotify_channel = ?, image = ?
+                WHERE id = ?
             """, (
-                name, style, status, history, facebook, instagram, tiktok, youtube_channel, spotify_channel, image_name
+                name, style, status, history, facebook, instagram, tiktok,
+                youtube_channel, spotify_channel, image_name, artist_id
             ))
 
-            artist_id = cursor.fetchone()["id"]
+            cursor.execute("DELETE FROM songs WHERE artist_id = ?", (artist_id,))
             total_views = 0
 
             for i in range(1, 6):
@@ -969,116 +1144,28 @@ def add_artist():
 
                     cursor.execute("""
                         INSERT INTO songs (artist_id, title, youtube_views, spotify_streams)
-                        VALUES (%s, %s, %s, %s)
+                        VALUES (?, ?, ?, ?)
                     """, (artist_id, song_title, yv, sp))
 
-            cursor.execute("UPDATE artists SET total_views = %s WHERE id = %s", (total_views, artist_id))
+            cursor.execute("UPDATE artists SET total_views = ? WHERE id = ?", (total_views, artist_id))
+            conn.commit()
 
-        conn.commit()
+            flash("Artist updated successfully")
+            return redirect(url_for("manage_artists"))
+
+        cursor.execute("SELECT * FROM artists WHERE id = ?", (artist_id,))
+        artist = cursor.fetchone()
+
+        cursor.execute("""
+            SELECT *
+            FROM songs
+            WHERE artist_id = ?
+            ORDER BY id ASC
+            LIMIT 5
+        """, (artist_id,))
+        songs = cursor.fetchall()
     finally:
-        conn.close()
-
-    flash("Artist added successfully")
-    return redirect(url_for("manage_artists"))
-
-
-@app.route("/admin/artists/delete/<int:artist_id>", methods=["POST"])
-def delete_artist(artist_id):
-    if not admin_required():
-        return redirect(url_for("login"))
-
-    conn = get_db_connection()
-    try:
-        with conn.cursor() as cur:
-            cur.execute("DELETE FROM songs WHERE artist_id = %s", (artist_id,))
-            cur.execute("DELETE FROM artists WHERE id = %s", (artist_id,))
-        conn.commit()
-    finally:
-        conn.close()
-
-    flash("Artist deleted successfully")
-    return redirect(url_for("manage_artists"))
-
-
-@app.route("/admin/artists/edit/<int:artist_id>", methods=["GET", "POST"])
-def edit_artist(artist_id):
-    if not admin_required():
-        return redirect(url_for("login"))
-
-    conn = get_db_connection()
-    try:
-        with conn.cursor() as cur:
-            if request.method == "POST":
-                name = request.form["name"]
-                style = request.form["style"]
-                status = request.form["status"]
-                history = request.form["history"]
-                facebook = request.form["facebook"]
-                instagram = request.form["instagram"]
-                tiktok = request.form["tiktok"]
-                youtube_channel = request.form["youtube_channel"]
-                spotify_channel = request.form["spotify_channel"]
-
-                cur.execute("SELECT * FROM artists WHERE id = %s", (artist_id,))
-                artist = cur.fetchone()
-                image_name = artist["image"]
-
-                image_file = request.files.get("image")
-                if image_file and image_file.filename:
-                    if allowed_file(image_file.filename):
-                        filename = secure_filename(image_file.filename)
-                        image_name = f"{name.lower().replace(' ', '_')}_{filename}"
-                        image_file.save(os.path.join(app.config["ARTIST_UPLOAD_FOLDER"], image_name))
-                    else:
-                        flash("Invalid image format. Use png, jpg, jpeg, or webp.")
-                        return redirect(url_for("edit_artist", artist_id=artist_id))
-
-                cur.execute("""
-                    UPDATE artists
-                    SET name = %s, style = %s, status = %s, history = %s, facebook = %s, instagram = %s,
-                        tiktok = %s, youtube_channel = %s, spotify_channel = %s, image = %s
-                    WHERE id = %s
-                """, (
-                    name, style, status, history, facebook, instagram, tiktok,
-                    youtube_channel, spotify_channel, image_name, artist_id
-                ))
-
-                cur.execute("DELETE FROM songs WHERE artist_id = %s", (artist_id,))
-                total_views = 0
-
-                for i in range(1, 6):
-                    song_title = request.form.get(f"song_title_{i}", "").strip()
-                    youtube_views = request.form.get(f"youtube_views_{i}", "0").strip()
-                    spotify_streams = request.form.get(f"spotify_streams_{i}", "0").strip()
-
-                    if song_title:
-                        yv = int(youtube_views) if youtube_views.isdigit() else 0
-                        sp = int(spotify_streams) if spotify_streams.isdigit() else 0
-                        total_views += yv + sp
-
-                        cur.execute("""
-                            INSERT INTO songs (artist_id, title, youtube_views, spotify_streams)
-                            VALUES (%s, %s, %s, %s)
-                        """, (artist_id, song_title, yv, sp))
-
-                cur.execute("UPDATE artists SET total_views = %s WHERE id = %s", (total_views, artist_id))
-                conn.commit()
-
-                flash("Artist updated successfully")
-                return redirect(url_for("manage_artists"))
-
-            cur.execute("SELECT * FROM artists WHERE id = %s", (artist_id,))
-            artist = cur.fetchone()
-
-            cur.execute("""
-                SELECT *
-                FROM songs
-                WHERE artist_id = %s
-                ORDER BY id ASC
-                LIMIT 5
-            """, (artist_id,))
-            songs = cur.fetchall()
-    finally:
+        cursor.close()
         conn.close()
 
     return render_template("admin/edit_artist.html", artist=artist, songs=songs)
@@ -1096,11 +1183,11 @@ def manage_songs():
     params = []
 
     if search:
-        query += " AND (song_title ILIKE %s OR artist_name ILIKE %s)"
+        query += " AND (song_title LIKE ? OR artist_name LIKE ?)"
         params.extend([f"%{search}%", f"%{search}%"])
 
     if status_filter:
-        query += " AND status = %s"
+        query += " AND status = ?"
         params.append(status_filter)
 
     query += " ORDER BY rank_number ASC"
@@ -1148,20 +1235,21 @@ def add_chart_song():
 
     conn = get_db_connection()
     try:
-        with conn.cursor() as cur:
-            cur.execute("""
-                UPDATE chart_songs
-                SET rank_number = rank_number + 1
-                WHERE rank_number >= %s
-            """, (rank_number,))
+        cursor = conn.cursor()
+        cursor.execute("""
+            UPDATE chart_songs
+            SET rank_number = rank_number + 1
+            WHERE rank_number >= ?
+        """, (rank_number,))
 
-            cur.execute("""
-                INSERT INTO chart_songs (artist_name, song_title, rank_number, status, image)
-                VALUES (%s, %s, %s, %s, %s)
-            """, (artist_name, song_title, rank_number, status, image_name))
+        cursor.execute("""
+            INSERT INTO chart_songs (artist_name, song_title, rank_number, status, image)
+            VALUES (?, ?, ?, ?, ?)
+        """, (artist_name, song_title, rank_number, status, image_name))
 
         conn.commit()
     finally:
+        cursor.close()
         conn.close()
 
     flash("Chart song added successfully.")
@@ -1175,20 +1263,21 @@ def delete_chart_song(song_id):
 
     conn = get_db_connection()
     try:
-        with conn.cursor() as cur:
-            cur.execute("SELECT * FROM chart_songs WHERE id = %s", (song_id,))
-            song = cur.fetchone()
+        cursor = conn.cursor()
+        cursor.execute("SELECT * FROM chart_songs WHERE id = ?", (song_id,))
+        song = cursor.fetchone()
 
-            if song:
-                deleted_rank = song["rank_number"]
-                cur.execute("DELETE FROM chart_songs WHERE id = %s", (song_id,))
-                cur.execute("""
-                    UPDATE chart_songs
-                    SET rank_number = rank_number - 1
-                    WHERE rank_number > %s
-                """, (deleted_rank,))
-                conn.commit()
+        if song:
+            deleted_rank = song["rank_number"]
+            cursor.execute("DELETE FROM chart_songs WHERE id = ?", (song_id,))
+            cursor.execute("""
+                UPDATE chart_songs
+                SET rank_number = rank_number - 1
+                WHERE rank_number > ?
+            """, (deleted_rank,))
+            conn.commit()
     finally:
+        cursor.close()
         conn.close()
 
     flash("Chart song deleted successfully.")
@@ -1202,56 +1291,57 @@ def edit_chart_song(song_id):
 
     conn = get_db_connection()
     try:
-        with conn.cursor() as cur:
-            cur.execute("SELECT * FROM chart_songs WHERE id = %s", (song_id,))
-            song = cur.fetchone()
+        cursor = conn.cursor()
+        cursor.execute("SELECT * FROM chart_songs WHERE id = ?", (song_id,))
+        song = cursor.fetchone()
 
-            if not song:
-                flash("Song not found.")
-                return redirect(url_for("manage_songs"))
+        if not song:
+            flash("Song not found.")
+            return redirect(url_for("manage_songs"))
 
-            if request.method == "POST":
-                artist_name = request.form["artist_name"].strip()
-                song_title = request.form["song_title"].strip()
-                new_rank = int(request.form["rank_number"])
-                status = request.form["status"].strip()
-                image_name = song["image"]
-                old_rank = song["rank_number"]
+        if request.method == "POST":
+            artist_name = request.form["artist_name"].strip()
+            song_title = request.form["song_title"].strip()
+            new_rank = int(request.form["rank_number"])
+            status = request.form["status"].strip()
+            image_name = song["image"]
+            old_rank = song["rank_number"]
 
-                image_file = request.files.get("image")
-                if image_file and image_file.filename:
-                    if allowed_file(image_file.filename):
-                        filename = secure_filename(image_file.filename)
-                        image_name = f"{artist_name.lower().replace(' ', '_')}_{song_title.lower().replace(' ', '_')}_{filename}"
-                        image_file.save(os.path.join(app.config["SONG_UPLOAD_FOLDER"], image_name))
-                    else:
-                        flash("Invalid song image format.")
-                        return redirect(url_for("edit_chart_song", song_id=song_id))
+            image_file = request.files.get("image")
+            if image_file and image_file.filename:
+                if allowed_file(image_file.filename):
+                    filename = secure_filename(image_file.filename)
+                    image_name = f"{artist_name.lower().replace(' ', '_')}_{song_title.lower().replace(' ', '_')}_{filename}"
+                    image_file.save(os.path.join(app.config["SONG_UPLOAD_FOLDER"], image_name))
+                else:
+                    flash("Invalid song image format.")
+                    return redirect(url_for("edit_chart_song", song_id=song_id))
 
-                if new_rank != old_rank:
-                    if new_rank < old_rank:
-                        cur.execute("""
-                            UPDATE chart_songs
-                            SET rank_number = rank_number + 1
-                            WHERE rank_number >= %s AND rank_number < %s AND id != %s
-                        """, (new_rank, old_rank, song_id))
-                    else:
-                        cur.execute("""
-                            UPDATE chart_songs
-                            SET rank_number = rank_number - 1
-                            WHERE rank_number <= %s AND rank_number > %s AND id != %s
-                        """, (new_rank, old_rank, song_id))
+            if new_rank != old_rank:
+                if new_rank < old_rank:
+                    cursor.execute("""
+                        UPDATE chart_songs
+                        SET rank_number = rank_number + 1
+                        WHERE rank_number >= ? AND rank_number < ? AND id != ?
+                    """, (new_rank, old_rank, song_id))
+                else:
+                    cursor.execute("""
+                        UPDATE chart_songs
+                        SET rank_number = rank_number - 1
+                        WHERE rank_number <= ? AND rank_number > ? AND id != ?
+                    """, (new_rank, old_rank, song_id))
 
-                cur.execute("""
-                    UPDATE chart_songs
-                    SET artist_name = %s, song_title = %s, rank_number = %s, status = %s, image = %s
-                    WHERE id = %s
-                """, (artist_name, song_title, new_rank, status, image_name, song_id))
+            cursor.execute("""
+                UPDATE chart_songs
+                SET artist_name = ?, song_title = ?, rank_number = ?, status = ?, image = ?
+                WHERE id = ?
+            """, (artist_name, song_title, new_rank, status, image_name, song_id))
 
-                conn.commit()
-                flash("Chart song updated successfully.")
-                return redirect(url_for("manage_songs"))
+            conn.commit()
+            flash("Chart song updated successfully.")
+            return redirect(url_for("manage_songs"))
     finally:
+        cursor.close()
         conn.close()
 
     return render_template("admin/edit_chart_song.html", song=song)
@@ -1264,20 +1354,21 @@ def move_chart_song_up(song_id):
 
     conn = get_db_connection()
     try:
-        with conn.cursor() as cur:
-            cur.execute("SELECT * FROM chart_songs WHERE id = %s", (song_id,))
-            song = cur.fetchone()
+        cursor = conn.cursor()
+        cursor.execute("SELECT * FROM chart_songs WHERE id = ?", (song_id,))
+        song = cursor.fetchone()
 
-            if song and song["rank_number"] > 1:
-                current_rank = song["rank_number"]
-                cur.execute("SELECT * FROM chart_songs WHERE rank_number = %s", (current_rank - 1,))
-                above_song = cur.fetchone()
+        if song and song["rank_number"] > 1:
+            current_rank = song["rank_number"]
+            cursor.execute("SELECT * FROM chart_songs WHERE rank_number = ?", (current_rank - 1,))
+            above_song = cursor.fetchone()
 
-                if above_song:
-                    cur.execute("UPDATE chart_songs SET rank_number = %s WHERE id = %s", (current_rank, above_song["id"]))
-                    cur.execute("UPDATE chart_songs SET rank_number = %s WHERE id = %s", (current_rank - 1, song_id))
-                    conn.commit()
+            if above_song:
+                cursor.execute("UPDATE chart_songs SET rank_number = ? WHERE id = ?", (current_rank, above_song["id"]))
+                cursor.execute("UPDATE chart_songs SET rank_number = ? WHERE id = ?", (current_rank - 1, song_id))
+                conn.commit()
     finally:
+        cursor.close()
         conn.close()
 
     return redirect(url_for("manage_songs"))
@@ -1290,24 +1381,25 @@ def move_chart_song_down(song_id):
 
     conn = get_db_connection()
     try:
-        with conn.cursor() as cur:
-            cur.execute("SELECT * FROM chart_songs WHERE id = %s", (song_id,))
-            song = cur.fetchone()
+        cursor = conn.cursor()
+        cursor.execute("SELECT * FROM chart_songs WHERE id = ?", (song_id,))
+        song = cursor.fetchone()
 
-            cur.execute("SELECT MAX(rank_number) AS max_rank FROM chart_songs")
-            max_rank_row = cur.fetchone()
-            max_rank = max_rank_row["max_rank"] if max_rank_row and max_rank_row["max_rank"] else 0
+        cursor.execute("SELECT MAX(rank_number) AS max_rank FROM chart_songs")
+        max_rank_row = cursor.fetchone()
+        max_rank = max_rank_row["max_rank"] if max_rank_row and max_rank_row["max_rank"] else 0
 
-            if song and song["rank_number"] < max_rank:
-                current_rank = song["rank_number"]
-                cur.execute("SELECT * FROM chart_songs WHERE rank_number = %s", (current_rank + 1,))
-                below_song = cur.fetchone()
+        if song and song["rank_number"] < max_rank:
+            current_rank = song["rank_number"]
+            cursor.execute("SELECT * FROM chart_songs WHERE rank_number = ?", (current_rank + 1,))
+            below_song = cursor.fetchone()
 
-                if below_song:
-                    cur.execute("UPDATE chart_songs SET rank_number = %s WHERE id = %s", (current_rank, below_song["id"]))
-                    cur.execute("UPDATE chart_songs SET rank_number = %s WHERE id = %s", (current_rank + 1, song_id))
-                    conn.commit()
+            if below_song:
+                cursor.execute("UPDATE chart_songs SET rank_number = ? WHERE id = ?", (current_rank, below_song["id"]))
+                cursor.execute("UPDATE chart_songs SET rank_number = ? WHERE id = ?", (current_rank + 1, song_id))
+                conn.commit()
     finally:
+        cursor.close()
         conn.close()
 
     return redirect(url_for("manage_songs"))
@@ -1324,65 +1416,66 @@ def manage_votes():
 
     conn = get_db_connection()
     try:
-        with conn.cursor() as cur:
-            cur.execute("SELECT * FROM vote_events ORDER BY created_at DESC, id DESC")
-            events = cur.fetchall()
+        cur = conn.cursor()
+        cur.execute("SELECT * FROM vote_events ORDER BY created_at DESC, id DESC")
+        events = cur.fetchall()
 
-            filtered_events = []
-            summary_counts = {
-                "Open": 0,
-                "Closed": 0,
-                "Upcoming": 0,
-                "Ended": 0
-            }
+        filtered_events = []
+        summary_counts = {
+            "Open": 0,
+            "Closed": 0,
+            "Upcoming": 0,
+            "Ended": 0
+        }
 
-            for event in events:
-                live_status = get_event_live_status(event)
-                summary_counts[live_status] = summary_counts.get(live_status, 0) + 1
+        for event in events:
+            live_status = get_event_live_status(event)
+            summary_counts[live_status] = summary_counts.get(live_status, 0) + 1
 
-                if search and search.lower() not in event["title"].lower():
-                    continue
-                if type_filter and event["category_type"] != type_filter:
-                    continue
-                if state_filter and live_status != state_filter:
-                    continue
+            if search and search.lower() not in event["title"].lower():
+                continue
+            if type_filter and event["category_type"] != type_filter:
+                continue
+            if state_filter and live_status != state_filter:
+                continue
 
-                cur.execute("""
-                    SELECT *
-                    FROM vote_candidates
-                    WHERE event_id = %s
-                    ORDER BY votes_count DESC, candidate_name ASC
-                """, (event["id"],))
-                candidates = cur.fetchall()
+            cur.execute("""
+                SELECT *
+                FROM vote_candidates
+                WHERE event_id = ?
+                ORDER BY votes_count DESC, candidate_name ASC
+            """, (event["id"],))
+            candidates = cur.fetchall()
 
-                cur.execute("""
-                    SELECT COALESCE(SUM(votes_count), 0) AS total_votes
-                    FROM vote_candidates
-                    WHERE event_id = %s
-                """, (event["id"],))
-                total_votes_row = cur.fetchone()
-                total_votes = total_votes_row["total_votes"] if total_votes_row else 0
-                leader = candidates[0] if candidates else None
+            cur.execute("""
+                SELECT COALESCE(SUM(votes_count), 0) AS total_votes
+                FROM vote_candidates
+                WHERE event_id = ?
+            """, (event["id"],))
+            total_votes_row = cur.fetchone()
+            total_votes = total_votes_row["total_votes"] if total_votes_row else 0
+            leader = candidates[0] if candidates else None
 
-                candidate_list = []
-                for candidate in candidates:
-                    progress = 0
-                    if total_votes > 0:
-                        progress = round((candidate["votes_count"] / total_votes) * 100, 1)
+            candidate_list = []
+            for candidate in candidates:
+                progress = 0
+                if total_votes > 0:
+                    progress = round((candidate["votes_count"] / total_votes) * 100, 1)
 
-                    candidate_list.append({
-                        "candidate": candidate,
-                        "progress": progress
-                    })
-
-                filtered_events.append({
-                    "event": event,
-                    "live_status": live_status,
-                    "candidates": candidate_list,
-                    "leader": leader,
-                    "total_votes": total_votes
+                candidate_list.append({
+                    "candidate": candidate,
+                    "progress": progress
                 })
+
+            filtered_events.append({
+                "event": event,
+                "live_status": live_status,
+                "candidates": candidate_list,
+                "leader": leader,
+                "total_votes": total_votes
+            })
     finally:
+        cur.close()
         conn.close()
 
     return render_template(
@@ -1423,37 +1516,37 @@ def add_vote_event():
 
     conn = get_db_connection()
     try:
-        with conn.cursor() as cursor:
-            cursor.execute("""
-                INSERT INTO vote_events (title, category_type, status, vote_rule, start_datetime, end_datetime)
-                VALUES (%s, %s, %s, %s, %s, %s)
-                RETURNING id
-            """, (title, category_type, manual_status, "one_per_device", start_datetime, end_datetime))
+        cursor = conn.cursor()
+        cursor.execute("""
+            INSERT INTO vote_events (title, category_type, status, vote_rule, start_datetime, end_datetime)
+            VALUES (?, ?, ?, ?, ?, ?)
+        """, (title, category_type, manual_status, "one_per_device", start_datetime, end_datetime))
 
-            event_id = cursor.fetchone()["id"]
+        event_id = cursor.lastrowid
 
-            for i in range(1, 6):
-                candidate_name = request.form.get(f"candidate_name_{i}", "").strip()
-                image_file = request.files.get(f"candidate_image_{i}")
-                image_name = None
+        for i in range(1, 6):
+            candidate_name = request.form.get(f"candidate_name_{i}", "").strip()
+            image_file = request.files.get(f"candidate_image_{i}")
+            image_name = None
 
-                if candidate_name:
-                    if image_file and image_file.filename:
-                        if allowed_file(image_file.filename):
-                            filename = secure_filename(image_file.filename)
-                            image_name = f"{candidate_name.lower().replace(' ', '_')}_{filename}"
-                            image_file.save(os.path.join(app.config["VOTE_UPLOAD_FOLDER"], image_name))
-                        else:
-                            flash("Invalid candidate image format.")
-                            return redirect(url_for("manage_votes"))
+            if candidate_name:
+                if image_file and image_file.filename:
+                    if allowed_file(image_file.filename):
+                        filename = secure_filename(image_file.filename)
+                        image_name = f"{candidate_name.lower().replace(' ', '_')}_{filename}"
+                        image_file.save(os.path.join(app.config["VOTE_UPLOAD_FOLDER"], image_name))
+                    else:
+                        flash("Invalid candidate image format.")
+                        return redirect(url_for("manage_votes"))
 
-                    cursor.execute("""
-                        INSERT INTO vote_candidates (event_id, candidate_name, image, votes_count)
-                        VALUES (%s, %s, %s, 0)
-                    """, (event_id, candidate_name, image_name))
+                cursor.execute("""
+                    INSERT INTO vote_candidates (event_id, candidate_name, image, votes_count)
+                    VALUES (?, ?, ?, 0)
+                """, (event_id, candidate_name, image_name))
 
         conn.commit()
     finally:
+        cursor.close()
         conn.close()
 
     flash("Voting event created successfully.")
@@ -1485,7 +1578,7 @@ def add_vote_candidate(event_id):
 
     execute_commit("""
         INSERT INTO vote_candidates (event_id, candidate_name, image, votes_count)
-        VALUES (%s, %s, %s, 0)
+        VALUES (?, ?, ?, 0)
     """, (event_id, candidate_name, image_name))
 
     flash("Candidate added successfully.")
@@ -1499,15 +1592,16 @@ def toggle_vote_event_status(event_id):
 
     conn = get_db_connection()
     try:
-        with conn.cursor() as cur:
-            cur.execute("SELECT * FROM vote_events WHERE id = %s", (event_id,))
-            event = cur.fetchone()
+        cursor = conn.cursor()
+        cursor.execute("SELECT * FROM vote_events WHERE id = ?", (event_id,))
+        event = cursor.fetchone()
 
-            if event:
-                new_status = "Closed" if event["status"] == "Open" else "Open"
-                cur.execute("UPDATE vote_events SET status = %s WHERE id = %s", (new_status, event_id))
-                conn.commit()
+        if event:
+            new_status = "Closed" if event["status"] == "Open" else "Open"
+            cursor.execute("UPDATE vote_events SET status = ? WHERE id = ?", (new_status, event_id))
+            conn.commit()
     finally:
+        cursor.close()
         conn.close()
 
     flash("Voting event status updated.")
@@ -1519,7 +1613,7 @@ def delete_vote_candidate(candidate_id):
     if not admin_required():
         return redirect(url_for("login"))
 
-    execute_commit("DELETE FROM vote_candidates WHERE id = %s", (candidate_id,))
+    execute_commit("DELETE FROM vote_candidates WHERE id = ?", (candidate_id,))
     flash("Candidate removed successfully.")
     return redirect(url_for("manage_votes"))
 
@@ -1531,11 +1625,12 @@ def delete_vote_event(event_id):
 
     conn = get_db_connection()
     try:
-        with conn.cursor() as cur:
-            cur.execute("DELETE FROM vote_candidates WHERE event_id = %s", (event_id,))
-            cur.execute("DELETE FROM vote_events WHERE id = %s", (event_id,))
+        cursor = conn.cursor()
+        cursor.execute("DELETE FROM vote_candidates WHERE event_id = ?", (event_id,))
+        cursor.execute("DELETE FROM vote_events WHERE id = ?", (event_id,))
         conn.commit()
     finally:
+        cursor.close()
         conn.close()
 
     flash("Voting event deleted successfully.")
@@ -1554,14 +1649,14 @@ def manage_events():
     params = []
 
     if search:
-        query += " AND (name ILIKE %s OR venue ILIKE %s)"
+        query += " AND (name LIKE ? OR venue LIKE ?)"
         params.extend([f"%{search}%", f"%{search}%"])
 
     if status_filter:
-        query += " AND status = %s"
+        query += " AND status = ?"
         params.append(status_filter)
 
-    query += " ORDER BY TO_TIMESTAMP(event_datetime, 'YYYY-MM-DD\"T\"HH24:MI') ASC"
+    query += " ORDER BY datetime(event_datetime) ASC"
 
     all_events = fetchall(query, params)
 
@@ -1601,7 +1696,7 @@ def add_event():
 
     execute_commit("""
         INSERT INTO events_list (name, event_datetime, venue, ticket_link, image, status)
-        VALUES (%s, %s, %s, %s, %s, %s)
+        VALUES (?, ?, ?, ?, ?, ?)
     """, (name, event_datetime, venue, ticket_link, image_name, status))
 
     flash("Event added successfully.")
@@ -1615,43 +1710,44 @@ def edit_event(event_id):
 
     conn = get_db_connection()
     try:
-        with conn.cursor() as cur:
-            cur.execute("SELECT * FROM events_list WHERE id = %s", (event_id,))
-            event = cur.fetchone()
+        cursor = conn.cursor()
+        cursor.execute("SELECT * FROM events_list WHERE id = ?", (event_id,))
+        event = cursor.fetchone()
 
-            if not event:
-                flash("Event not found.")
-                return redirect(url_for("manage_events"))
+        if not event:
+            flash("Event not found.")
+            return redirect(url_for("manage_events"))
 
-            if request.method == "POST":
-                name = request.form["name"].strip()
-                event_datetime = request.form["event_datetime"].strip()
-                venue = request.form["venue"].strip()
-                ticket_link = request.form["ticket_link"].strip()
-                status = request.form["status"].strip()
+        if request.method == "POST":
+            name = request.form["name"].strip()
+            event_datetime = request.form["event_datetime"].strip()
+            venue = request.form["venue"].strip()
+            ticket_link = request.form["ticket_link"].strip()
+            status = request.form["status"].strip()
 
-                image_name = event["image"]
-                image_file = request.files.get("image")
+            image_name = event["image"]
+            image_file = request.files.get("image")
 
-                if image_file and image_file.filename:
-                    if allowed_file(image_file.filename):
-                        filename = secure_filename(image_file.filename)
-                        image_name = f"{name.lower().replace(' ', '_')}_{filename}"
-                        image_file.save(os.path.join(app.config["EVENT_UPLOAD_FOLDER"], image_name))
-                    else:
-                        flash("Invalid event image format.")
-                        return redirect(url_for("edit_event", event_id=event_id))
+            if image_file and image_file.filename:
+                if allowed_file(image_file.filename):
+                    filename = secure_filename(image_file.filename)
+                    image_name = f"{name.lower().replace(' ', '_')}_{filename}"
+                    image_file.save(os.path.join(app.config["EVENT_UPLOAD_FOLDER"], image_name))
+                else:
+                    flash("Invalid event image format.")
+                    return redirect(url_for("edit_event", event_id=event_id))
 
-                cur.execute("""
-                    UPDATE events_list
-                    SET name = %s, event_datetime = %s, venue = %s, ticket_link = %s, image = %s, status = %s
-                    WHERE id = %s
-                """, (name, event_datetime, venue, ticket_link, image_name, status, event_id))
+            cursor.execute("""
+                UPDATE events_list
+                SET name = ?, event_datetime = ?, venue = ?, ticket_link = ?, image = ?, status = ?
+                WHERE id = ?
+            """, (name, event_datetime, venue, ticket_link, image_name, status, event_id))
 
-                conn.commit()
-                flash("Event updated successfully")
-                return redirect(url_for("manage_events"))
+            conn.commit()
+            flash("Event updated successfully")
+            return redirect(url_for("manage_events"))
     finally:
+        cursor.close()
         conn.close()
 
     return render_template("admin/edit_event.html", event=event)
@@ -1662,7 +1758,7 @@ def delete_event(event_id):
     if not admin_required():
         return redirect(url_for("login"))
 
-    execute_commit("DELETE FROM events_list WHERE id = %s", (event_id,))
+    execute_commit("DELETE FROM events_list WHERE id = ?", (event_id,))
     flash("Event deleted successfully.")
     return redirect(url_for("manage_events"))
 
@@ -1680,28 +1776,29 @@ def manage_news():
     params = []
 
     if search:
-        query += " AND (title ILIKE %s OR content ILIKE %s)"
+        query += " AND (title LIKE ? OR content LIKE ?)"
         params.extend([f"%{search}%", f"%{search}%"])
 
     if status_filter:
-        query += " AND status = %s"
+        query += " AND status = ?"
         params.append(status_filter)
 
     if category_filter:
-        query += " AND category = %s"
+        query += " AND category = ?"
         params.append(category_filter)
 
     query += " ORDER BY created_at DESC, id DESC"
 
     conn = get_db_connection()
     try:
-        with conn.cursor() as cur:
-            cur.execute(query, params)
-            news_items = cur.fetchall()
+        cur = conn.cursor()
+        cur.execute(query, params)
+        news_items = cur.fetchall()
 
-            cur.execute("SELECT DISTINCT category FROM news ORDER BY category ASC")
-            categories = cur.fetchall()
+        cur.execute("SELECT DISTINCT category FROM news ORDER BY category ASC")
+        categories = cur.fetchall()
     finally:
+        cur.close()
         conn.close()
 
     return render_template(
@@ -1742,7 +1839,7 @@ def add_news():
 
     execute_commit("""
         INSERT INTO news (title, category, content, image, status)
-        VALUES (%s, %s, %s, %s, %s)
+        VALUES (?, ?, ?, ?, ?)
     """, (title, category, content, image_name, status))
 
     flash("News added successfully.")
@@ -1756,46 +1853,47 @@ def edit_news(news_id):
 
     conn = get_db_connection()
     try:
-        with conn.cursor() as cur:
-            cur.execute("SELECT * FROM news WHERE id = %s", (news_id,))
-            news_item = cur.fetchone()
+        cursor = conn.cursor()
+        cursor.execute("SELECT * FROM news WHERE id = ?", (news_id,))
+        news_item = cursor.fetchone()
 
-            if not news_item:
-                flash("News item not found.")
-                return redirect(url_for("manage_news"))
+        if not news_item:
+            flash("News item not found.")
+            return redirect(url_for("manage_news"))
 
-            if request.method == "POST":
-                title = request.form["title"].strip()
-                category = request.form["category"].strip()
-                content = request.form["content"].strip()
-                status = request.form["status"].strip()
+        if request.method == "POST":
+            title = request.form["title"].strip()
+            category = request.form["category"].strip()
+            content = request.form["content"].strip()
+            status = request.form["status"].strip()
 
-                if not title or not category or not content:
-                    flash("Title, category, and content are required.")
+            if not title or not category or not content:
+                flash("Title, category, and content are required.")
+                return redirect(url_for("edit_news", news_id=news_id))
+
+            image_name = news_item["image"]
+            image_file = request.files.get("image")
+
+            if image_file and image_file.filename:
+                if allowed_file(image_file.filename):
+                    filename = secure_filename(image_file.filename)
+                    image_name = f"{title.lower().replace(' ', '_')}_{filename}"
+                    image_file.save(os.path.join(app.config["NEWS_UPLOAD_FOLDER"], image_name))
+                else:
+                    flash("Invalid image format. Use png, jpg, jpeg, or webp.")
                     return redirect(url_for("edit_news", news_id=news_id))
 
-                image_name = news_item["image"]
-                image_file = request.files.get("image")
+            cursor.execute("""
+                UPDATE news
+                SET title = ?, category = ?, content = ?, image = ?, status = ?
+                WHERE id = ?
+            """, (title, category, content, image_name, status, news_id))
 
-                if image_file and image_file.filename:
-                    if allowed_file(image_file.filename):
-                        filename = secure_filename(image_file.filename)
-                        image_name = f"{title.lower().replace(' ', '_')}_{filename}"
-                        image_file.save(os.path.join(app.config["NEWS_UPLOAD_FOLDER"], image_name))
-                    else:
-                        flash("Invalid image format. Use png, jpg, jpeg, or webp.")
-                        return redirect(url_for("edit_news", news_id=news_id))
-
-                cur.execute("""
-                    UPDATE news
-                    SET title = %s, category = %s, content = %s, image = %s, status = %s
-                    WHERE id = %s
-                """, (title, category, content, image_name, status, news_id))
-
-                conn.commit()
-                flash("News updated successfully.")
-                return redirect(url_for("manage_news"))
+            conn.commit()
+            flash("News updated successfully.")
+            return redirect(url_for("manage_news"))
     finally:
+        cursor.close()
         conn.close()
 
     return render_template("admin/edit_news.html", news_item=news_item)
@@ -1806,7 +1904,7 @@ def delete_news(news_id):
     if not admin_required():
         return redirect(url_for("login"))
 
-    execute_commit("DELETE FROM news WHERE id = %s", (news_id,))
+    execute_commit("DELETE FROM news WHERE id = ?", (news_id,))
     flash("News deleted successfully.")
     return redirect(url_for("manage_news"))
 
@@ -1815,18 +1913,19 @@ def delete_news(news_id):
 def artist_profile(artist_id):
     conn = get_db_connection()
     try:
-        with conn.cursor() as cur:
-            cur.execute("SELECT * FROM artists WHERE id = %s", (artist_id,))
-            artist = cur.fetchone()
+        cur = conn.cursor()
+        cur.execute("SELECT * FROM artists WHERE id = ?", (artist_id,))
+        artist = cur.fetchone()
 
-            cur.execute("""
-                SELECT *
-                FROM songs
-                WHERE artist_id = %s
-                ORDER BY youtube_views DESC, spotify_streams DESC
-            """, (artist_id,))
-            songs = cur.fetchall()
+        cur.execute("""
+            SELECT *
+            FROM songs
+            WHERE artist_id = ?
+            ORDER BY youtube_views DESC, spotify_streams DESC
+        """, (artist_id,))
+        songs = cur.fetchall()
     finally:
+        cur.close()
         conn.close()
 
     if not artist:

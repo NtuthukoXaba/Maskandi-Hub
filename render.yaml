@@ -1,0 +1,17 @@
+services:
+  - type: web
+    name: maskandi-hub
+    runtime: python
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn app:app
+    envVars:
+      - key: SECRET_KEY
+        generateValue: true
+      - key: DEBUG
+        value: False
+      - key: RENDER
+        value: true
+    disk:
+      name: sqlite-data
+      mountPath: /tmp
+      sizeGB: 1
